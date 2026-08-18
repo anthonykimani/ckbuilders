@@ -2,12 +2,6 @@
 
 Week Ending: 2026-08-17
 
-## Dev Environment
-
-- **OffCKB devnet node**: CKB RPC at `http://127.0.0.1:8114`, RPC proxy at `http://127.0.0.1:28114`
-- Default devnet account #0: `ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqvwg2cen8extgq8s5puft8vf40px3f599cytcyd8`
-- `ckb-debugger` not installed, so the build uses the `offckb debugger` fallback
-
 ## Courses & Reading Completed
 
 - **Spore Protocol**: the standard for digital objects (DOBs) on CKB, the CKB version of NFTs
