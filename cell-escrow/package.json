@@ -1,0 +1,10 @@
+{
+  "name": "@anthonykimani/cell-escrow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "demo": "node examples/lifecycle.js"
+  }
+}
