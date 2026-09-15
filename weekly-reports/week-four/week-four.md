@@ -31,11 +31,15 @@ CheckoutSession
 
 This architecture does not pretend that a simulator is the network. Instead, it makes the application's assumptions executable while isolating the exact boundary that needs live infrastructure.
 
+![Fiber Invoice Lab provider architecture and payment states](fiber-provider-architecture.png)
+
+*Figure 1 — The checkout core can switch between the executed memory provider and the pending live Fiber SDK adapter without changing application logic.*
+
 ## Lifecycle Implemented
 
 ![Fiber Invoice Lab simulated payment and automated test evidence](fiber-invoice-evidence.png)
 
-*Figure 1 — Executed local checkout lifecycle and test evidence. The payment uses the deterministic `MemoryFiberProvider`; a live Fiber payment remains pending.*
+*Figure 2 — Executed local checkout lifecycle and test evidence. The payment uses the deterministic `MemoryFiberProvider`; a live Fiber payment remains pending.*
 
 An invoice starts open, can become paid once, and becomes expired when its deadline passes. Payment is idempotent: repeating the same request returns the original successful result rather than creating a second charge. A changed amount invalidates the encoded invoice and is rejected.
 

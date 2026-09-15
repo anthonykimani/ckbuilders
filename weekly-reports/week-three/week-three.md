@@ -33,6 +33,10 @@ The agreement has two legal exits:
 recipient-owned cell                    payer-owned cell
 ```
 
+![CellEscrow versioned binary cell-data schema](cell-data-schema.png)
+
+*Figure 1 — The 105-byte versioned agreement layout implemented by the CellEscrow codec.*
+
 The validator checks the authorization, condition and destination together. A valid preimage alone is not enough: the recipient must sign and the output must pay the recipient. Likewise, a mature timelock alone does not allow arbitrary spending: the payer must sign and receive the output.
 
 ## Important Design Decisions
@@ -57,7 +61,11 @@ Byte zero is a version. That small choice gives a deployed reader a safe way to 
 
 ![CellEscrow local protocol tests and generated claim transaction plan](cell-escrow-evidence.png)
 
-*Figure 1 — Executed local evidence: the CellEscrow test suite and generated claim transaction plan. This is not presented as an on-chain transaction.*
+*Figure 2 — Executed local evidence: the CellEscrow test suite and generated claim transaction plan. This is not presented as an on-chain transaction.*
+
+![CellEscrow adversarial rejection-test matrix](cell-rejection-tests.png)
+
+*Figure 3 — Negative-path verification covering incorrect secrets, actors, timelocks, destinations and repeat settlement.*
 
 Running `npm test` inside `cell-escrow/` covers:
 
