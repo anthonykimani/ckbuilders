@@ -33,6 +33,10 @@ This architecture does not pretend that a simulator is the network. Instead, it 
 
 ## Lifecycle Implemented
 
+![Fiber Invoice Lab simulated payment and automated test evidence](fiber-invoice-evidence.png)
+
+*Figure 1 — Executed local checkout lifecycle and test evidence. The payment uses the deterministic `MemoryFiberProvider`; a live Fiber payment remains pending.*
+
 An invoice starts open, can become paid once, and becomes expired when its deadline passes. Payment is idempotent: repeating the same request returns the original successful result rather than creating a second charge. A changed amount invalidates the encoded invoice and is rejected.
 
 The five tests cover successful checkout, zero-value rejection, expiry, idempotent replay and invoice tampering.

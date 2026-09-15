@@ -8,6 +8,10 @@ This week I treated documentation and negative tests as part of the protocol—n
 
 ## Work Completed
 
+![Verification summary for CellEscrow and Fiber Invoice Lab](verification-summary.png)
+
+*Figure 1 — Combined verification status after executing both local suites: 13 of 13 tests pass. Network deployment items remain explicitly marked pending.*
+
 - Two dependency-free project cores that run on Node.js 20+.
 - Thirteen total tests covering both successful paths and adversarial/failure cases.
 - A versioned binary schema for escrow cells.

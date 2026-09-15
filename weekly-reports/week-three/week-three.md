@@ -55,6 +55,10 @@ Byte zero is a version. That small choice gives a deployed reader a safe way to 
 
 ## Verification
 
+![CellEscrow local protocol tests and generated claim transaction plan](cell-escrow-evidence.png)
+
+*Figure 1 — Executed local evidence: the CellEscrow test suite and generated claim transaction plan. This is not presented as an on-chain transaction.*
+
 Running `npm test` inside `cell-escrow/` covers:
 
 - cell-data encoding and decoding;
