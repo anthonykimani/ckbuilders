@@ -1,0 +1,43 @@
+module cellscript_escrow_tests
+
+// The v0.25.0 executable scenario runner can run no-argument entries on both
+// the simulator and CKB-VM backends. These entries exercise the same decision
+// rules as src/main.cell without claiming transaction-syscall coverage.
+
+fn claim_allowed(actor_is_recipient: bool, preimage_matches: bool, locked_capacity: u64, output_capacity: u64) -> bool {
+    actor_is_recipient && preimage_matches && locked_capacity == output_capacity
+}
+
+fn refund_allowed(actor_is_payer: bool, current_height: u64, refund_height: u64, locked_capacity: u64, output_capacity: u64) -> bool {
+    actor_is_payer && current_height >= refund_height && locked_capacity == output_capacity
+}
+
+action recipient_claims() {
+    verification
+        require claim_allowed(true, true, 30000000000, 30000000000), "valid claim rejected"
+}
+
+action payer_refunds() {
+    verification
+        require refund_allowed(true, 500, 500, 30000000000, 30000000000), "valid refund rejected"
+}
+
+action reject_wrong_actor() {
+    verification
+        require claim_allowed(false, true, 30000000000, 30000000000), "wrong actor"
+}
+
+action reject_wrong_preimage() {
+    verification
+        require claim_allowed(true, false, 30000000000, 30000000000), "wrong preimage"
+}
+
+action reject_early_refund() {
+    verification
+        require refund_allowed(true, 499, 500, 30000000000, 30000000000), "refund height not reached"
+}
+
+action reject_redirected_capacity() {
+    verification
+        require claim_allowed(true, true, 30000000000, 29999999999), "capacity changed"
+}

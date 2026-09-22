@@ -1,0 +1,26 @@
+version = 3
+schema = "cellscript-lock-v0.24-graph-v1"
+
+[package]
+edition = "2026"
+name = "cellscript_escrow"
+version = "0.1.0"
+source_hash = "040796d20b3d2d65ed1339cb6dc8beb72ab445440b389f928c1bdd5656d9e885"
+compiler_source_hash = "d0e25e8fb3586d050483dc1065cd7aa72750a85f2835198dc7c7f86f268e01e8"
+
+[root]
+manifest_digest = "sha256:25d18946e1a8916eb8c4d2affbed41e8997f3790738a2d903f1bc145d6d768f8"
+
+[dependencies]
+
+[package_build]
+edition = "2026"
+compatibility_profile_hash = "affbfc1aef0029da8274db501188b273784dcfbba1f38539720702846e589093"
+compiler_version = "0.25.0"
+target_profile = "ckb"
+artifact_hash = "45a326378156300ca7c320792c159f17997c6eeb599162c50f16132a870ca89b"
+metadata_hash = "7ce222bd561d1f3a88a20850f64c4d0e80d81cada960042a8aeece6e18f4060b"
+schema_hash = "8eed26ddc48ae0d487b0fd5af9c00848bfaafe05cc8a7c3e8179efa8d7876030"
+cell_data_codec_manifest_hash = "26eabe6c4fd166aae96551478b18aaadbf151bb577e883f55ee2893a84addbf7"
+abi_hash = "dc19af41fffa21035da0f568153fd4d7284d3618696c3917511878311d11ca55"
+constraints_hash = "b5cc15a07f2c1e6427dca160cc559357afd4d23f45971c9849bcc77d907db64c"

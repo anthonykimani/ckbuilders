@@ -9,7 +9,7 @@ Learning reports and projects by Anthony Kimani.
 - [Week 3](weekly-reports/week-three/week-three.md) — Cell-native escrow protocol design
 - [Week 4](weekly-reports/week-four/week-four.md) — Fiber invoice checkout architecture
 - [Week 5](weekly-reports/week-five/week-five.md) — verification and production-readiness review
-- [Week 6](weekly-reports/week-six/week-six.md) — ecosystem research and evidence-led product direction
+- [Week 6](weekly-reports/week-six/week-six.md) — CellScript escrow deep dive
 
 ## Featured projects
 
@@ -17,3 +17,7 @@ Learning reports and projects by Anthony Kimani.
 - [Fiber Invoice Lab](fiber-invoice-lab/README.md)
 
 See [PROJECTS.md](PROJECTS.md) for the combined project overview.
+
+## Week 6 experiment
+
+- [CellScript Escrow](cellscript-escrow/README.md) — claim/refund rules compiled with CellScript v0.25.0

@@ -1,0 +1,106 @@
+module cellscript_escrow
+
+// A small CellScript port of the repository's JavaScript CellEscrow model.
+// It models one escrow Cell that can be consumed once through either claim
+// or refund. Settlement creates a terminal Escrow successor whose capacity
+// is preserved and whose output lock is fixed to the correct party.
+
+enum EscrowState {
+    Pending,
+    Claimed,
+    Refunded,
+}
+
+resource Escrow has store, create, consume, burn {
+    escrow_id: Hash,
+    payer: Address,
+    recipient: Address,
+    escrow_lock: Address,
+    payment_hash: Hash,
+    refund_height: u64,
+    locked_capacity: u64,
+    state: EscrowState,
+}
+
+receipt SettlementRecord has create {
+    escrow_id: Hash,
+    action: u8,
+    settled_by: Address,
+    settled_at: u64,
+}
+
+flow Escrow.state {
+    initial Pending;
+    terminal Claimed, Refunded;
+
+    Pending -> Claimed;
+    Pending -> Refunded;
+}
+
+action create_escrow(
+    escrow_id: Hash,
+    payer: Address,
+    recipient: Address,
+    escrow_lock: Address,
+    payment_hash: Hash,
+    refund_height: u64,
+    locked_capacity: u64,
+) -> escrow: Escrow {
+    verification
+        let now = env::current_timepoint()
+        require locked_capacity > 0, "capacity must be positive"
+        require refund_height > now, "refund height must be in the future"
+        create escrow = Escrow { escrow_id, payer, recipient, escrow_lock, payment_hash, refund_height, locked_capacity, state: EscrowState::Pending } with_lock(escrow_lock)
+}
+
+action claim(
+    escrow: Escrow,
+    preimage: Hash,
+    claimed_by: Address,
+) -> (settled: Escrow, record: SettlementRecord) {
+    transition escrow.state: Pending -> settled.state: Claimed
+    verification
+        let now = env::current_timepoint()
+        require escrow.state == EscrowState::Pending, "escrow is not pending"
+        require claimed_by == escrow.recipient, "only recipient can claim"
+        require hash_blake2b(preimage) == escrow.payment_hash, "wrong preimage"
+        require now < escrow.refund_height, "claim window expired"
+        preserve settled from escrow {
+            escrow_id
+            payer
+            recipient
+            escrow_lock
+            payment_hash
+            refund_height
+            locked_capacity
+        }
+        consume escrow
+        create settled = Escrow { escrow_id: escrow.escrow_id, payer: escrow.payer, recipient: escrow.recipient, escrow_lock: escrow.escrow_lock, payment_hash: escrow.payment_hash, refund_height: escrow.refund_height, locked_capacity: escrow.locked_capacity, state: EscrowState::Claimed } with_lock(escrow.recipient)
+        std::cell::preserve_capacity(settled, escrow)
+        create record = SettlementRecord { escrow_id: escrow.escrow_id, action: 1, settled_by: claimed_by, settled_at: now }
+}
+
+action refund(
+    escrow: Escrow,
+    refunded_by: Address,
+) -> (settled: Escrow, record: SettlementRecord) {
+    transition escrow.state: Pending -> settled.state: Refunded
+    verification
+        let now = env::current_timepoint()
+        require escrow.state == EscrowState::Pending, "escrow is not pending"
+        require refunded_by == escrow.payer, "only payer can refund"
+        require now >= escrow.refund_height, "refund height not reached"
+        preserve settled from escrow {
+            escrow_id
+            payer
+            recipient
+            escrow_lock
+            payment_hash
+            refund_height
+            locked_capacity
+        }
+        consume escrow
+        create settled = Escrow { escrow_id: escrow.escrow_id, payer: escrow.payer, recipient: escrow.recipient, escrow_lock: escrow.escrow_lock, payment_hash: escrow.payment_hash, refund_height: escrow.refund_height, locked_capacity: escrow.locked_capacity, state: EscrowState::Refunded } with_lock(escrow.payer)
+        std::cell::preserve_capacity(settled, escrow)
+        create record = SettlementRecord { escrow_id: escrow.escrow_id, action: 2, settled_by: refunded_by, settled_at: now }
+}

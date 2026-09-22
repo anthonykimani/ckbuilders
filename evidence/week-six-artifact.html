@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="utf-8"><title>CellScript artifact verification</title><style>
+*{box-sizing:border-box}body{margin:0;background:#0d1117;color:#e6edf3;font:18px/1.55 Consolas,monospace}.terminal{width:1280px;height:760px;margin:auto;padding:0 44px}.bar{height:58px;border-bottom:1px solid #30363d;display:flex;align-items:center;color:#8b949e;font:15px Segoe UI,sans-serif}.dots{color:#f85149;letter-spacing:6px;margin-right:18px}.body{padding:30px 0}.prompt{color:#3fb950}.cmd{color:#f0f6fc}.json{margin-top:24px;padding:24px 30px;background:#161b22;border:1px solid #30363d;border-radius:8px;white-space:pre}.key{color:#79c0ff}.str{color:#a5d6ff}.num{color:#d2a8ff}.ok{color:#56d364}.note{margin-top:22px;color:#8b949e;border-left:3px solid #d29922;padding-left:16px}
+</style></head><body><main class="terminal"><div class="bar"><span class="dots">● ● ●</span>WSL · build/main.elf · CellScript v0.25.0</div><div class="body"><div><span class="prompt">$</span> <span class="cmd">cellc verify-artifact build/main.elf --verify-sources --json</span></div><div class="json">{
+  <span class="key">"artifact_format"</span>: <span class="str">"RISC-V ELF"</span>,
+  <span class="key">"artifact_hash"</span>: <span class="str">"45a326378156300ca7c320792c159f17997c6eeb599162c50f16132a870ca89b"</span>,
+  <span class="key">"artifact_size_bytes"</span>: <span class="num">48800</span>,
+  <span class="key">"compiler_version"</span>: <span class="str">"0.25.0"</span>,
+  <span class="key">"binding_verification"</span>: <span class="ok">"verified"</span>,
+  <span class="key">"structural_verification"</span>: <span class="ok">"verified"</span>,
+  <span class="key">"typed_semantics_verification"</span>: <span class="ok">"verified"</span>,
+  <span class="key">"chain_evidence"</span>: <span class="str">"not-provided"</span>,
+  <span class="key">"estimated_cycles"</span>: <span class="num">812</span>,
+  <span class="key">"measured_cycles"</span>: null
+}</div><div class="note">Verified local artifact. No devnet/mainnet deployment or transaction confirmation is claimed.</div></div></main></body></html>
