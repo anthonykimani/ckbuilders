@@ -9,6 +9,7 @@ Learning reports and projects by Anthony Kimani.
 - [Week 3](weekly-reports/week-three/week-three.md) — Cell-native escrow protocol design
 - [Week 4](weekly-reports/week-four/week-four.md) — Fiber invoice checkout architecture
 - [Week 5](weekly-reports/week-five/week-five.md) — verification and production-readiness review
+- [Week 6](weekly-reports/week-six/week-six.md) — ecosystem research and evidence-led product direction
 
 ## Featured projects
 
