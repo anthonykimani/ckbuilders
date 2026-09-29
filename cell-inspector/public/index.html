@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#e8eef4">
+    <title>Cell Inspector · CKB Builders</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark" aria-hidden="true">▦</span><span>CKB / Cell Inspector</span></div>
+        <span class="topbar-note">Read-only transaction view</span>
+      </header>
+      <main>
+        <section class="intro" aria-labelledby="page-title">
+          <p class="eyebrow">Follow the cells</p>
+          <h1 id="page-title">Where did the capacity go?</h1>
+          <p class="intro-copy">Paste a CKB transaction hash. I’ll show which Cells it spent, which Cells it made, and what was left as a fee.</p>
+          <form id="lookup-form" novalidate>
+            <div class="form-grid">
+              <div class="field network-field">
+                <label for="network">Network</label>
+                <select id="network" name="network">
+                  <option value="testnet">Testnet</option>
+                  <option value="mainnet">Mainnet</option>
+                </select>
+              </div>
+              <div class="field hash-field">
+                <label for="hash">Transaction hash</label>
+                <div class="hash-control">
+                  <input id="hash" name="hash" type="text" spellcheck="false" autocomplete="off" placeholder="0x…" aria-describedby="hash-help hash-error">
+                  <button id="clear-hash" class="clear-button" type="button" aria-label="Clear transaction hash" hidden>×</button>
+                </div>
+              </div>
+              <button id="inspect-button" class="primary-button" type="submit">Inspect transaction</button>
+            </div>
+            <p id="hash-help" class="field-help">A public hash only. No wallet connection or signing.</p>
+            <p id="hash-error" class="field-error" role="alert" hidden></p>
+          </form>
+          <button id="sample-button" class="sample-button" type="button">Try a real testnet transaction <span aria-hidden="true">↗</span></button>
+        </section>
+        <section id="result-region" class="result-region" aria-live="polite" aria-busy="false">
+          <div id="empty-state" class="empty-state">
+            <span class="empty-icon" aria-hidden="true">⧉</span>
+            <div><h2>One transaction, two sides</h2><p>Inputs are Cells being spent. Outputs are new Cells created in their place.</p></div>
+          </div>
+          <div id="loading-state" class="loading-state" hidden><span class="spinner" aria-hidden="true"></span><span>Reading the transaction and its previous Cells…</span></div>
+          <div id="result" hidden>
+            <div class="result-head"><div><p class="eyebrow">Transaction trace</p><h2 id="result-title"></h2></div><span id="result-status" class="status-pill"></span></div>
+            <div class="flow-panel">
+              <div class="flow-top"><span>Capacity in</span><span>Capacity out</span></div>
+              <div class="flow-rail" aria-hidden="true"><div id="flow-fill"></div></div>
+              <div class="flow-values"><strong id="input-total"></strong><strong id="output-total"></strong></div>
+              <p id="fee-line" class="fee-line"></p>
+            </div>
+            <div class="cells-grid">
+              <section aria-labelledby="inputs-title"><div class="column-head"><h3 id="inputs-title">Spent Cells</h3><span id="input-count"></span></div><ol id="inputs-list" class="cell-list"></ol></section>
+              <section aria-labelledby="outputs-title"><div class="column-head"><h3 id="outputs-title">New Cells</h3><span id="output-count"></span></div><ol id="outputs-list" class="cell-list"></ol></section>
+            </div>
+            <p id="partial-note" class="partial-note" hidden></p>
+          </div>
+        </section>
+      </main>
+      <footer><span>Built for CKBuilders · Anthony Kimani</span><span>Public chain data only · No transactions are sent</span></footer>
+    </div>
+  </body>
+</html>

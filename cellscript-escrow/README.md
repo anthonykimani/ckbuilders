@@ -45,7 +45,7 @@ npm run test:settle
 
 Run this in Linux/WSL with Node.js and `ckb-debugger` v1.1.1 on `PATH`, or set `CKB_DEBUGGER` to its executable path. The test writes mock transaction JSON to ignored `build/`.
 
-This version is **not deployable or safe to fund**. Its grouped-input attack fixture is accepted: a second Cell with the same type Script can be added and its capacity paid elsewhere, because the action only checks `GroupInput #0`. An output-only attempt to create the first typed escrow Cell is rejected. The holding lock is permissionless and the harness does not run CKB consensus validation. See the [Week 7 report](../weekly-reports/week-seven/week-seven.md) for the observed exit codes, cycle measurements and remaining design questions.
+This version is **not deployable or safe to fund**. Its grouped-input fixture is accepted: a second Cell with the same type Script can be added and its capacity paid elsewhere, because the action only checks `GroupInput #0`. An output-only attempt to create the first typed escrow Cell is rejected. The holding lock is permissionless and the harness does not run CKB consensus validation. See the [Week 7 report](../weekly-reports/week-seven/week-seven.md) for the findings and the separate Cell Inspector project.
 
 ## Status
 
