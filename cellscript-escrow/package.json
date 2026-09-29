@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:ckb": "node test/ckb-transaction.test.js"
+    "test:ckb": "node test/ckb-transaction.test.js",
+    "test:settle": "node test/settle-transaction.test.js"
   },
   "dependencies": {
     "@ckb-ccc/core": "1.5.3",

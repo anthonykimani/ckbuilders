@@ -2,43 +2,45 @@
 
 Prepared: 2026-09-29
 
-## What I worked on
+## What I tried to answer
 
-Last week I said my CellScript escrow tests did not load real Cell inputs, outputs and witnesses. I wanted to close that gap before writing more about the language. I kept the same `v0.25.0` contract and built mock CKB transactions for its `claim` and `refund` entries.
+My first Week 7 test was too easy. I ran the `claim` and `refund` type scripts separately against mock transactions. Both passed, but that does not mean one escrow Cell has both exits. A CKB Cell has one type Script identity. I had compiled two different ELFs, then manufactured a fresh input Cell for each test.
 
-## The transaction test
+I went back to the contract and asked a harder question: can I make one escrow Cell that can be claimed or refunded, and can I safely create and spend it on CKB?
 
-The new [test harness](../../cellscript-escrow/test/ckb-transaction.test.js) creates a pending escrow Cell, a separate funding Cell, a terminal escrow output and a settlement record output. It puts the CellScript entry payload inside `WitnessArgs.input_type`, then runs the compiled RISC-V type script with `ckb-debugger` v1.1.1. The two inputs have 601 CKB in total; the outputs have 600 CKB, leaving 1 CKB as a mock fee. I sized the escrow and record outputs above their occupied-capacity needs.
+## A single settlement entry
 
-I compiled separate claim and refund entries with `cellc 0.25.0`. The claim ELF is 36,896 bytes and the refund ELF is 16,320 bytes. These are local build files, not deployed code Cells.
+I wrote a second, experimental [CellScript entry](../../cellscript-escrow/experimental/settle.cell) called `settle`. A witness byte selects claim or refund. Both branches run from the same compiled ELF and the same type Script identity. Instead of creating a terminal `Escrow` successor, the action consumes the pending escrow and requires an ordinary payout output with the full escrow capacity and the stored recipient or payer lock hash. That avoids leaving the money in a terminal typed Cell with no withdrawal path.
 
-## Results
+For a claim, the script checks the BLAKE2b preimage. For a refund, it compares the escrow's stored refund epoch with the input's absolute epoch `since`. This is different from the Week 6 `env::current_timepoint()` check. [CellScript's v0.25.0 CKB profile notes](https://github.com/CellScript-Labs/CellScript/blob/v0.25.0/docs/wiki/Tutorial-05-CKB-Target-Profiles.md) say that function reads the epoch number of HeaderDep #0. A transaction can choose an old header dependency, so I cannot use it as proof of the current chain epoch or of a claim cutoff.
 
-| Case | Type-script result | Cycles |
-| --- | --- | ---: |
-| Correct claim | Pass | 41,717 |
-| Refund at the test deadline | Pass | 27,689 |
-| Wrong claim actor | Reject | 14,624 |
-| Wrong refund actor | Reject | 8,943 |
-| Wrong preimage | Reject | 23,393 |
-| Early refund | Reject | 9,602 |
-| Claim output sent to payer | Reject | 37,860 |
-| Refund output sent to recipient | Reject | 23,832 |
-| Escrow output loses 1 CKB | Reject | 39,482 |
-| Attacker-funded claim naming recipient, without signature | **Pass** | 41,717 |
+The [new test harness](../../cellscript-escrow/test/settle-transaction.test.js) runs the input lock and type script with `ckb-debugger` v1.1.1. The holding lock in this local test is deliberately `alwaysSuccess`. Anyone can submit a valid claim or refund transaction, but the type script is meant to force the payout to the stored lock hash. There is no signer authentication in this design. I am testing the payout rules, not claiming a signed escrow.
 
-I ran these with the native debugger, not the small scenario runner used in Week 6. The correct claim and refund enter the actual compiled contract through CKB syscalls. The rejected cases show the output-lock and capacity checks are present in the generated code, not just in my JavaScript model. The refund tests use deadlines 0 and 100 against the local debugger's timepoint 0; I have not tested a live block-height transition.
+## What passed
 
-## The part that is not safe yet
+The claim branch returned 0 at 22,068 type-script cycles, and the refund branch returned 0 at 14,144. The test holding lock used another 539 cycles in each case. Wrong preimage, payout sent to the wrong lock, reduced payout capacity, missing refund `since`, and an invalid branch byte were rejected. The refund test used `since` encoded for epoch 100; removing it produced error 36.
 
-The last row is the important one. `claimed_by` is a witness value. The type script checks that it equals the recipient stored in the escrow Cell, but it cannot tell who supplied that value. I gave the funding Cell an attacker lock and supplied no recipient signature. The type script still returned 0.
+These tests use a single `settle.elf`, unlike my original claim/refund tests. The local mock inputs total 500 CKB; the outputs total 499 CKB, leaving 1 CKB for a fee. These are debugger fixtures, not broadcast transactions or consensus dry runs.
 
-This is not a complete transaction acceptance result: the harness deliberately runs `input.0.type` and does not execute the placeholder lock scripts. It is enough to show that my CellScript type script alone does **not** authenticate the claimant. A real escrow needs a lock design that verifies the right signer for claim and refund, while still allowing the preimage and timelock branches. Until I connect and test that lock, I would not deploy this or call it secure.
+`cellc 0.25.0` built the 30,160-byte ELF. `cellc verify-artifact build/settle.elf --verify-sources --json` reported source binding `verified` and chain evidence `not-provided`.
 
-I also have not broadcast anything to devnet or mainnet, and I have not run a consensus-level validator or audit. The debugger cycle figures above are for this type script only, not a complete transaction including locks.
+## What broke
+
+I then added a second escrow input with the *same* type Script to a claim transaction and sent that second Cell's 400 CKB to a different lock. The holding lock and the type script both returned 0. The action only checks `GroupInput #0`; CKB executes the same type Script once for the group, not once per Cell. My second input escaped the capacity and payout checks. This is a serious loss-of-funds path in the experimental design, so it is **not safe to deploy**. It is not a live exploit: this artifact cannot currently create its first escrow Cell. Fixing creation alone, though, would leave this spend path open.
+
+I also tried to create the initial typed escrow Cell from a funding input. The output-only type-script run rejected with error 44 (`CkbSourceViewInvalid`): `settle` expects a group input. The mock harness had manufactured its starting escrow Cell. I do not yet have a creation path that validates on-chain under this same Script identity.
+
+Finally, a claim with `since` set to epoch 101 still passed even though the refund threshold is epoch 100. That is expected for the new design: `since` is a lower bound, and the claim branch has no reliable upper-bound check. After the refund epoch, claim and refund can race. I need to state that plainly instead of promising a strict claim-before-deadline window.
+
+| Adversarial check | Observed result |
+| --- | --- |
+| Wrong preimage, wrong payout lock, reduced payout, missing refund `since`, invalid branch | Rejected |
+| Claim eligible only from epoch 101, with refund epoch 100 | Accepted |
+| Two escrow inputs in one type-script group; second payout diverted | **Accepted — unsafe** |
+| Create the first typed escrow Cell using this artifact | Rejected |
 
 ## What I learned
 
-The state and output rules survived a more realistic test than last week's typed scenarios. That was useful. But the transaction test also made the authorization issue impossible to miss: checking an address-shaped value in a witness is not checking a signature. The next design decision is the lock/type boundary, not another UI around the escrow.
+The exercise changed my view of what “the contract passes” means. A correct branch check is not enough if the Script group can contain an extra Cell or if the first Cell cannot be created. The Week 6 prototype also confused a selectable header epoch with a chain-enforced deadline.
 
-I wrote a [forum article draft](../../cellscript-escrow/ARTICLE-DRAFT.md) with the exact test shape, numbers and the question I want to ask Arthur. I have not posted it yet.
+I have left the single-entry version under `experimental/`. The practical blockers are now specific: a creation-and-settlement path under one Script identity, a rule that accounts for every Cell in the Script group, and a decision about whether claim remains possible after the refund epoch. I would ask Arthur about those exact points before treating this as a deployable escrow. The [forum article draft](../../cellscript-escrow/ARTICLE-DRAFT.md) includes the failing fixtures and questions. I have not posted it or deployed anything.

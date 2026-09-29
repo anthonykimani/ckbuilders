@@ -1,0 +1,32 @@
+module cellscript_escrow_settle
+
+// One entry artifact for both exits. Unlike the Week 6 prototype, this
+// consumes the escrow and pays an ordinary output instead of creating a
+// terminal escrow resource that cannot be spent.
+resource Escrow has store, create, consume, burn {
+    escrow_id: Hash,
+    payer_lock_hash: Hash,
+    recipient_lock_hash: Hash,
+    payment_hash: Hash,
+    refund_epoch: u64,
+    locked_capacity: u64,
+}
+
+action settle(escrow: Escrow, preimage: Hash, branch: u8) -> u64 {
+    verification
+        let payout = source::output(0)
+        let input = source::group_input(0)
+        require ckb::cell_capacity(input) == escrow.locked_capacity
+        require ckb::cell_capacity(payout) == escrow.locked_capacity
+        if branch == 1 {
+            require hash_blake2b(preimage) == escrow.payment_hash
+            ckb::require_cell_lock_hash(payout, escrow.recipient_lock_hash)
+        } else {
+            require branch == 2
+            let required_since = ckb::since_epoch_absolute(escrow.refund_epoch, 0, 1)
+            dao::require_input_since_at_least(input, required_since)
+            ckb::require_cell_lock_hash(payout, escrow.payer_lock_hash)
+        }
+        consume escrow
+        return 0
+}

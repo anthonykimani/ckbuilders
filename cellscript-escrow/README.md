@@ -34,6 +34,19 @@ Set `CKB_DEBUGGER` to the debugger path if it is not on `PATH`. The mock transac
 
 Important: this harness selects `input.0.type`; it does **not** verify the placeholder lock scripts or full consensus validity. A witness naming the recipient passes the type script even when the funding Cell belongs to an attacker and no recipient signature is supplied. This is a demonstrated authorization gap, not a successful security test. The zero-height refund fixture exercises the refund branch locally; it does not prove a live-chain timelock.
 
+## Week 7 deeper experiment — unsafe
+
+[`experimental/settle.cell`](experimental/settle.cell) puts claim and refund in **one** entry artifact and pays a plain output. It uses an absolute epoch `since` lower bound for refund. The paired harness runs the local `alwaysSuccess` holding lock and the type script:
+
+```bash
+cellc experimental/settle.cell --target riscv64-elf --target-profile ckb --entry-action settle -o build/settle.elf
+npm run test:settle
+```
+
+Run this in Linux/WSL with Node.js and `ckb-debugger` v1.1.1 on `PATH`, or set `CKB_DEBUGGER` to its executable path. The test writes mock transaction JSON to ignored `build/`.
+
+This version is **not deployable or safe to fund**. Its grouped-input attack fixture is accepted: a second Cell with the same type Script can be added and its capacity paid elsewhere, because the action only checks `GroupInput #0`. An output-only attempt to create the first typed escrow Cell is rejected. The holding lock is permissionless and the harness does not run CKB consensus validation. See the [Week 7 report](../weekly-reports/week-seven/week-seven.md) for the observed exit codes, cycle measurements and remaining design questions.
+
 ## Status
 
 Local experiment only. The contract has not been deployed to devnet or mainnet and has not been audited.

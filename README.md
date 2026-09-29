@@ -10,7 +10,7 @@ Learning reports and projects by Anthony Kimani.
 - [Week 4](weekly-reports/week-four/week-four.md) — Fiber invoice checkout architecture
 - [Week 5](weekly-reports/week-five/week-five.md) — verification and production-readiness review
 - [Week 6](weekly-reports/week-six/week-six.md) — CellScript escrow deep dive
-- [Week 7](weekly-reports/week-seven/week-seven.md) — transaction-shaped CellScript escrow tests and authorization gap
+- [Week 7](weekly-reports/week-seven/week-seven.md) — single-entry escrow tests and unsafe grouped-input finding
 
 ## Featured projects
 

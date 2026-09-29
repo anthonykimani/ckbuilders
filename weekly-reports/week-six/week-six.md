@@ -104,6 +104,8 @@ There is also an authorization boundary I have not completed. The pending Cell i
 
 The CKB-VM cycle numbers above are for those small rule scenarios. They are not the measured cost of a complete escrow settlement transaction. The artifact verifier reports chain evidence as `not-provided` and requires a dry run before production use.
 
+Correction found during my Week 7 transaction tests: under the CKB target profile, `env::current_timepoint()` reads HeaderDep #0's **epoch number**, not the current block height. The transaction builder chooses that header dependency, so it is not proof that a strict claim cutoff has passed. My earlier use of “refund height” and “claim window” in this report describes the intended model, not a verified chain-enforced deadline.
+
 I did not deploy this contract to devnet or mainnet, so there is no transaction hash for this week. The project is also not audited.
 
 ## What I learned
