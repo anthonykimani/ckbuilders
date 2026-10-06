@@ -6,7 +6,8 @@
     "test": "node --test test/*.test.js",
     "test:ckb": "node --test test/ckb.test.js test/run-ckb.test.js test/bootstrap-ckb.test.js",
     "test:rust": "node --test test/rust-ckb.test.js",
-    "play": "node src/play.js"
+    "play": "node src/play.js",
+    "web": "node scripts/serve-web.mjs"
   },
   "dependencies": {
     "@ckb-ccc/core": "1.5.3",
