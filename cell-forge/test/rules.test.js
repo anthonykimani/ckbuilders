@@ -7,16 +7,16 @@ const smelt = () => ({
   recipe: 'smelt',
   inputs: ['state-0', 'ore-0', 'coal-0'],
   outputs: [
-    { id: 'state-1', kind: 'State', runId: 'run-1', owner: 'alice', capacity: 100, turn: 1 },
-    { id: 'bar-1', kind: 'Bar', runId: 'run-1', owner: 'alice', capacity: 200 },
+    { id: 'state-1', kind: 'State', runId: 'run-1', owner: 'alice', units: 1, turn: 1 },
+    { id: 'bar-1', kind: 'Bar', runId: 'run-1', owner: 'alice', units: 2 },
   ],
 });
 const assemble = () => ({
   recipe: 'assemble',
   inputs: ['state-1', 'bar-1', 'wood-0'],
   outputs: [
-    { id: 'state-2', kind: 'State', runId: 'run-1', owner: 'alice', capacity: 100, turn: 2 },
-    { id: 'pickaxe-2', kind: 'Pickaxe', runId: 'run-1', owner: 'alice', capacity: 300 },
+    { id: 'state-2', kind: 'State', runId: 'run-1', owner: 'alice', units: 1, turn: 2 },
+    { id: 'pickaxe-2', kind: 'Pickaxe', runId: 'run-1', owner: 'alice', units: 3 },
   ],
 });
 
@@ -40,8 +40,8 @@ test('rejects malformed input and output groups', () => {
     [(move) => { move.outputs[0].owner = 'mallory'; }, /output identity changed/],
     [(move) => { move.outputs[1].runId = 'other-run'; }, /output identity changed/],
     [(move) => { move.outputs[1].kind = 'Pickaxe'; }, /wrong product/],
-    [(move) => { move.outputs[1].capacity = 199; }, /ingredient capacity changed/],
-    [(move) => { move.outputs[0].capacity = 99; }, /state capacity changed/],
+    [(move) => { move.outputs[1].units = 1; }, /ingredient units changed/],
+    [(move) => { move.outputs[0].units = 2; }, /state units changed/],
   ];
   for (const [mutate, error] of cases) {
     const move = smelt();

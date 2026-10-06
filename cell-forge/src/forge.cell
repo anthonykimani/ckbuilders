@@ -1,0 +1,59 @@
+module cell_forge
+
+// First contract slice: verify one two-input recipe and exactly one product.
+// This does not yet implement secure run bootstrap or the run-state Cell.
+struct ForgePlan {
+    owner: Address,
+    run_id: Hash,
+    kind: u8,
+    units: u64,
+}
+
+resource ForgeCell has store, create, consume
+with_capacity_floor(20000000000)
+{
+    owner: Address,
+    run_id: Hash,
+    kind: u8,
+    units: u64,
+}
+
+// Kinds: 1 Ore, 2 Coal, 3 Bar, 4 Wood, 5 Pickaxe.
+// Recipes: 1 Smelt (Ore + Coal -> Bar), 2 Assemble (Bar + Wood -> Pickaxe).
+action forge_pair(
+    input ingredients: BoundedCellSet<ForgeCell, 2>,
+    witness products: BoundedList<ForgePlan, 1>,
+    witness recipe: u8,
+    witness run_id: Hash,
+    witness owner: Address,
+) -> u64 {
+    verification
+        require recipe == 1 || recipe == 2
+        let mut input_count: u64 = 0
+        let mut kind_sum: u8 = 0
+        let mut unit_sum: u64 = 0
+        consume_each ingredient in ingredients {
+            require ingredient.run_id == run_id
+            require ingredient.owner == owner
+            require ingredient.units > 0
+            require ingredient.units <= 1000000000000000000
+            require (recipe == 1 && (ingredient.kind == 1 || ingredient.kind == 2)) || (recipe == 2 && (ingredient.kind == 3 || ingredient.kind == 4))
+            input_count += 1
+            kind_sum += ingredient.kind
+            unit_sum += ingredient.units
+        }
+        require input_count == 2
+        require (recipe == 1 && kind_sum == 3) || (recipe == 2 && kind_sum == 7)
+
+        let mut output_count: u64 = 0
+        create_each product in products {
+            require product.run_id == run_id
+            require product.owner == owner
+            require product.units == unit_sum
+            require (recipe == 1 && product.kind == 3) || (recipe == 2 && product.kind == 5)
+            output_count += 1
+            create ForgeCell { owner: product.owner, run_id: product.run_id, kind: product.kind, units: product.units } with_lock(product.owner)
+        }
+        require output_count == 1
+        return 0
+}

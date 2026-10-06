@@ -3,6 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "test:ckb": "node --test test/ckb.test.js"
+  },
+  "dependencies": {
+    "@ckb-ccc/core": "1.5.3",
+    "ckb-testtool": "1.0.5"
   }
 }

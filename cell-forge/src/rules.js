@@ -4,11 +4,11 @@ export const RECIPES = Object.freeze({
   assemble: { consumes: ['Bar', 'Wood'], creates: 'Pickaxe' },
 });
 
-export function initialRun(runId, owner, capacity = 100) {
-  if (!runId || !owner || !Number.isSafeInteger(capacity) || capacity <= 0) {
+export function initialRun(runId, owner) {
+  if (!runId || !owner) {
     throw new Error('invalid run fixture');
   }
-  const cell = (id, kind) => ({ id, kind, runId, owner, capacity });
+  const cell = (id, kind) => ({ id, kind, runId, owner, units: 1 });
   return {
     runId,
     owner,
@@ -50,16 +50,16 @@ export function applyMove(run, proposal) {
   assert(new Set(outputs.map((cell) => cell.id)).size === 2, 'duplicate output');
   assert(outputs.every((cell) => !live.has(cell.id)), 'output id already exists');
   assert(outputs.every((cell) => cell.runId === run.runId && cell.owner === run.owner), 'output identity changed');
-  assert(outputs.every((cell) => Number.isSafeInteger(cell.capacity) && cell.capacity > 0), 'invalid capacity');
+  assert(outputs.every((cell) => Number.isSafeInteger(cell.units) && cell.units > 0), 'invalid units');
 
   const nextStates = outputs.filter((cell) => cell.kind === 'State');
   assert(nextStates.length === 1, 'expected one state successor');
   const [nextState] = nextStates;
   assert(nextState.turn === stateInputs[0].turn + 1, 'turn must increase by one');
-  assert(nextState.capacity === stateInputs[0].capacity, 'state capacity changed');
+  assert(nextState.units === stateInputs[0].units, 'state units changed');
   const products = outputs.filter((cell) => cell.kind !== 'State');
   assert(products.length === 1 && products[0].kind === recipe.creates, 'wrong product');
-  assert(products[0].capacity === ingredients.reduce((sum, cell) => sum + cell.capacity, 0), 'ingredient capacity changed');
+  assert(products[0].units === ingredients.reduce((sum, cell) => sum + cell.units, 0), 'ingredient units changed');
 
   const spent = new Set(proposal.inputs);
   const next = {
