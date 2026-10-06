@@ -1,0 +1,39 @@
+module cell_forge_bootstrap_min
+
+struct NextCell {
+    recipient: Address,
+    kind: u8,
+    units: u64,
+    turn: u64,
+}
+
+resource GameCell has store, create, consume
+with_capacity_floor(20000000000)
+{
+    kind: u8,
+    units: u64,
+    turn: u64,
+}
+
+// Compiler probe: zero actual GroupInput cells and four GroupOutput cells.
+action bootstrap_probe(
+    input old: BoundedCellSet<GameCell, 3>,
+    witness next: BoundedList<NextCell, 4>,
+) -> u64 {
+    verification
+        let mut input_count: u64 = 0
+        consume_each cell in old {
+            input_count += 1
+        }
+        require input_count == 0
+        let mut output_count: u64 = 0
+        create_each plan in next {
+            require (output_count == 0 && plan.kind == 0) || (output_count == 1 && plan.kind == 1) || (output_count == 2 && plan.kind == 4) || (output_count == 3 && plan.kind == 64)
+            require plan.units == 1
+            require plan.turn == 0
+            output_count += 1
+            create GameCell { kind: plan.kind, units: plan.units, turn: plan.turn } with_lock(plan.recipient)
+        }
+        require output_count == 4
+        return 0
+}
