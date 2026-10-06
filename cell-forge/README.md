@@ -1,8 +1,8 @@
 # Cell Forge
 
-Cell Forge is a solo CKB Cell puzzle. The first level is Ore + Coal → Bar, then Bar + Wood → Pickaxe. This repository is at the **contract experiment** stage, not a playable testnet game.
+Cell Forge is a solo CKB Cell puzzle. The first level is Ore + Coal → Bar, then Bar + Wood → Pickaxe. The Rust contract has now completed a [signed local devnet run](DEVNET.md), but this is **not a public testnet game**.
 
-The [Rust Type Script](rust-contract/README.md) now handles start, both moves, and close in one artifact. Its local CKB-VM tests pass, but it has not been submitted to a CKB node or testnet. The CellScript version below remains a separate exploration and still has a combined-bootstrap compiler blocker.
+The [Rust Type Script](rust-contract/README.md) handles start, both moves, and close in one artifact. Its CKB-VM tests pass, and those four steps committed on a local CKB devnet with a real signed Lock transaction. The CellScript version below remains a separate exploration and still has a combined-bootstrap compiler blocker.
 
 You can already play the two-turn puzzle locally with `npm run play`. This has no wallet or chain interaction; it uses the same reference rules as the tests. Choose two ingredient Cell IDs when prompted.
 

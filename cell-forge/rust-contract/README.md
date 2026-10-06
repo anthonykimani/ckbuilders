@@ -23,4 +23,4 @@ npm ci
 node --test test/rust-ckb.test.js
 ```
 
-The build uses `ckb-std` 1.1.0, Clang for its C runtime, and Rust's `lower-atomic` pass. The test uses mocked Cells and an `alwaysSuccess` Lock. It proves the Type Script behavior in CKB-VM, **not** wallet authentication, CKB full-node admission, or a public testnet deployment. Never use the test Lock for funds. No public on-chain transaction has been made.
+The build uses `ckb-std` 1.1.0, Clang for its C runtime, and Rust's `lower-atomic` pass. The CKB-VM unit test uses mocked Cells and an `alwaysSuccess` Lock; never use that test Lock for funds. A separate [local devnet run](../DEVNET.md) used a real signed secp256k1 Lock and committed deploy, start, smelt, assemble, and close transactions. No public testnet transaction has been made.
