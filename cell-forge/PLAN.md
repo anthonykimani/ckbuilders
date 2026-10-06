@@ -4,7 +4,7 @@ Cell Forge is a solo puzzle about consuming ingredient Cells and creating new Ce
 
 ## Contract boundary
 
-The wallet Lock authorizes spending each input Cell. A CellScript Type policy must validate the game transition: one run identity, a bounded complete set of game inputs and outputs, one legal recipe, no duplicated ingredients or outputs, no altered owner, and a move count that increases by one. The transaction builder and frontend may preview a move but cannot be the security boundary.
+The wallet Lock authorizes spending each input Cell. One run-state Cell accompanies the ingredient Cells. Every move consumes the old run-state Cell plus the recipe's ingredients, then creates the next run-state Cell and one product. A CellScript Type policy must validate the complete bounded input/output group: one run identity, exactly one state successor, one legal recipe, no duplicated ingredients or outputs, no altered owner, and a move count that increases by one. The transaction builder and frontend may preview a move but cannot be the security boundary.
 
 Bootstrap is a separate problem. A run must be uniquely tied to a player's funding input or another verifiable origin; simply letting a frontend declare starting inventory would allow arbitrary forged runs. The exact bootstrap and Lock/Type composition must be proven in full CKB transactions before testnet use.
 
