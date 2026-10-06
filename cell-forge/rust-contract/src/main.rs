@@ -7,8 +7,7 @@ use ckb_std::{
     default_alloc, entry,
     error::SysError,
     high_level::{
-        load_cell_capacity, load_cell_data, load_cell_lock_hash, load_input_out_point,
-        load_script,
+        load_cell_capacity, load_cell_data, load_cell_lock_hash, load_input_out_point, load_script,
     },
 };
 
@@ -70,11 +69,19 @@ fn same_owner<const N: usize>(cells: &[Option<Cell>; N], count: usize, owner: &[
         .all(|cell| cell.is_some_and(|cell| &cell.lock_hash == owner))
 }
 
-fn has<const N: usize>(cells: &[Option<Cell>; N], count: usize, kind: u8, units: u64, turn: u64, capacity: u64) -> bool {
+fn has<const N: usize>(
+    cells: &[Option<Cell>; N],
+    count: usize,
+    kind: u8,
+    units: u64,
+    turn: u64,
+    capacity: u64,
+) -> bool {
     cells[..count]
         .iter()
         .filter(|cell| cell.is_some_and(|cell| is(cell, kind, units, turn, capacity)))
-        .count() == 1
+        .count()
+        == 1
 }
 
 fn validate() -> Result<(), i8> {
@@ -107,9 +114,7 @@ fn validate() -> Result<(), i8> {
     }
 
     let owner = inputs[0].ok_or(12)?.lock_hash;
-    if !same_owner(&inputs, input_count, &owner)
-        || !same_owner(&outputs, output_count, &owner)
-    {
+    if !same_owner(&inputs, input_count, &owner) || !same_owner(&outputs, output_count, &owner) {
         return Err(13);
     }
 
@@ -135,7 +140,8 @@ fn validate() -> Result<(), i8> {
         return Err(15);
     }
 
-    if input_count == 2 && output_count == 0
+    if input_count == 2
+        && output_count == 0
         && has(&inputs, 2, STATE, 1, 2, CAPACITY)
         && has(&inputs, 2, PICKAXE, 3, 0, CAPACITY * 3)
     {
