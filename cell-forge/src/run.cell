@@ -1,0 +1,59 @@
+module cell_forge_run
+
+// A full two-turn game transition. Bootstrap and wallet Lock validity remain
+// outside this Type Script experiment.
+struct NextCell {
+    recipient: Address,
+    kind: u8,
+    units: u64,
+    turn: u64,
+}
+
+resource GameCell has store, create, consume
+with_capacity_floor(20000000000)
+{
+    kind: u8,
+    units: u64,
+    turn: u64,
+}
+
+// Base-4 kind codes make a three-Cell sum identify the exact multiset:
+// 0 State, 1 Ore, 4 Coal, 16 Bar, 64 Wood, 128 Pickaxe.
+// One State plus two ingredients are consumed. Two outputs are created:
+// successor State first, product second.
+action forge_turn(
+    input old: BoundedCellSet<GameCell, 3>,
+    witness next: BoundedList<NextCell, 2>,
+    witness recipe: u8,
+) -> u64 {
+    verification
+        require recipe == 1 || recipe == 2
+        let mut input_count: u64 = 0
+        let mut kind_sum: u8 = 0
+        let mut unit_sum: u64 = 0
+        let mut turn_sum: u64 = 0
+        consume_each cell in old {
+            require cell.units > 0
+            require cell.units <= 1000000000000000000
+            require cell.kind != 0 || cell.units == 1
+            require cell.kind == 0 || cell.turn == 0
+            require (recipe == 1 && (cell.kind == 0 || cell.kind == 1 || cell.kind == 4)) || (recipe == 2 && (cell.kind == 0 || cell.kind == 16 || cell.kind == 64))
+            input_count += 1
+            kind_sum += cell.kind
+            unit_sum += cell.units
+            turn_sum += cell.turn
+        }
+        require input_count == 3
+        require (recipe == 1 && kind_sum == 5) || (recipe == 2 && kind_sum == 80)
+        require turn_sum < 2
+        require (recipe == 1 && turn_sum == 0) || (recipe == 2 && turn_sum == 1)
+
+        let mut output_count: u64 = 0
+        create_each plan in next {
+            require (output_count == 0 && plan.kind == 0 && plan.units == 1 && plan.turn == turn_sum + 1) || (output_count == 1 && plan.units == unit_sum - 1 && plan.turn == 0 && ((recipe == 1 && plan.kind == 16) || (recipe == 2 && plan.kind == 128)))
+            output_count += 1
+            create GameCell { kind: plan.kind, units: plan.units, turn: plan.turn } with_lock(plan.recipient)
+        }
+        require output_count == 2
+        return 0
+}
