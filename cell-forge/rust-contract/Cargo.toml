@@ -1,0 +1,18 @@
+[package]
+name = "cell-forge-type"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "cell-forge-type"
+path = "src/main.rs"
+
+[dependencies]
+ckb-std = { version = "=1.1.0", default-features = false, features = ["allocator", "ckb-types", "libc", "build-with-clang"] }
+
+[profile.release]
+panic = "abort"
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
