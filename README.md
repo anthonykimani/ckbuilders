@@ -16,6 +16,7 @@ Learning reports and projects by Anthony Kimani.
 
 - [CellEscrow](cell-escrow/README.md)
 - [Fiber Invoice Lab](fiber-invoice-lab/README.md)
+- [Cell Forge](cell-forge/README.md) — playable local puzzle and CellScript Type Script experiment
 
 See [PROJECTS.md](PROJECTS.md) for the combined project overview.
 
