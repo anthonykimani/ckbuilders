@@ -1,0 +1,65 @@
+module cell_forge_unified_probe
+
+struct NextCell {
+    recipient: Address,
+    kind: u8,
+    units: u64,
+    turn: u64,
+}
+
+resource GameCell has store, create, consume
+with_capacity_floor(20000000000)
+{
+    kind: u8,
+    units: u64,
+    turn: u64,
+}
+
+// Compiler reproducer only. This is deliberately not a deployable game policy.
+// v0.31.0 rejects this source at E2400/V2420. Earlier reductions with the
+// same zero-or-three input and four-or-two output shape compiled successfully.
+action unified_probe(
+    input old: BoundedCellSet<GameCell, 3>,
+    witness next: BoundedList<NextCell, 4>,
+    witness recipe: u8,
+) -> u64 {
+    verification
+        require recipe <= 2
+        let mut input_count: u64 = 0
+        let mut kind_sum: u8 = 0
+        let mut unit_sum: u64 = 0
+        let mut turn_sum: u64 = 0
+        consume_each cell in old {
+            require cell.kind == 0 || cell.kind == 1 || cell.kind == 4 || cell.kind == 16 || cell.kind == 64
+            require cell.units > 0
+            require cell.units <= 1000000000000000000
+            require cell.kind != 0 || cell.units == 1
+            require cell.kind == 0 || cell.turn == 0
+            input_count += 1
+            kind_sum += cell.kind
+            unit_sum += cell.units
+            turn_sum += cell.turn
+        }
+        require (recipe == 0 && input_count == 0) || (recipe == 1 && input_count == 3 && kind_sum == 5 && unit_sum == 3 && turn_sum == 0) || (recipe == 2 && input_count == 3 && kind_sum == 80 && unit_sum == 4 && turn_sum == 1)
+        let mut output_count: u64 = 0
+        let mut output_kind_sum: u8 = 0
+        let mut output_unit_sum: u64 = 0
+        let mut output_turn_sum: u64 = 0
+        create_each plan in next {
+            require plan.units > 0
+            require plan.units <= 1000000000000000000
+            require plan.turn <= 2
+            require recipe != 0 || plan.kind == 0 || plan.kind == 1 || plan.kind == 4 || plan.kind == 64
+            require recipe == 0 || plan.kind == 0 || plan.kind == 16 || plan.kind == 128
+            require plan.kind != 0 || plan.units == 1
+            require plan.kind == 0 || plan.turn == 0
+            output_count += 1
+            output_kind_sum += plan.kind
+            output_unit_sum += plan.units
+            output_turn_sum += plan.turn
+            create GameCell { kind: plan.kind, units: plan.units, turn: plan.turn } with_lock(plan.recipient)
+        }
+        require (recipe == 0 && output_count == 4) || (recipe > 0 && output_count == 2)
+        require (recipe == 0 && output_kind_sum == 69 && output_unit_sum == 4 && output_turn_sum == 0) || (recipe == 1 && output_kind_sum == 16 && output_unit_sum == 3 && output_turn_sum == 1) || (recipe == 2 && output_kind_sum == 128 && output_unit_sum == 4 && output_turn_sum == 2)
+        return 0
+}
