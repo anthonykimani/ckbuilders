@@ -4,7 +4,15 @@ Cell Forge is a solo CKB Cell puzzle. The first level is Ore + Coal → Bar, the
 
 The [Rust Type Script](rust-contract/README.md) handles start, both moves, and close in one artifact. Its CKB-VM tests pass, and those four steps committed on a local CKB devnet with a real signed Lock transaction. The CellScript version below remains a separate exploration and still has a combined-bootstrap compiler blocker.
 
-You can already play the two-turn puzzle locally with `npm run play`. This has no wallet or chain interaction; it uses the same reference rules as the tests. Choose two ingredient Cell IDs when prompted.
+You can play the two-turn puzzle in a browser. From `cell-forge/`, run `npm run web` and open `http://127.0.0.1:4173`. Select Ore and Coal, forge a Bar, then select Bar and Wood to forge a Pickaxe. Close the run or start again. The browser is **local practice only**: no wallet, node, or transaction submission. The move history shows game-Cell transitions, while the separate devnet panel links to the real signed local-chain record. `npm run play` remains available as a terminal version.
+
+These are screenshots of the running browser practice at the start, after smelting, and after assembling:
+
+![Cell Forge starting board](web/screenshots/01-start.png)
+
+![Cell Forge after the smelt move](web/screenshots/02-smelt.png)
+
+![Cell Forge with a Pickaxe ready to close](web/screenshots/03-pickaxe.png)
 
 The dependency-free JavaScript model in `src/rules.js` describes the two-turn puzzle, including a run-state Cell. `src/forge.cell` verifies one pair recipe. The more complete `src/run.cell` consumes exactly one state Cell and two ingredients, then creates the next state Cell and product. Both use CellScript v0.31.0 `BoundedCellSet` and `BoundedList`, so extra Cells in the current Type Script group are rejected. `units` are game quantities, **not CKB capacity**. The artifacts enforce a 200 CKB output capacity floor; they do not prove exact CKB capacity conservation.
 

@@ -80,3 +80,18 @@ $('#close').addEventListener('click', () => {
 });
 $('#reset').addEventListener('click', reset);
 reset();
+
+// Shareable solved states also make the game's transitions easy to inspect.
+const scene = new URLSearchParams(location.search).get('scene');
+if (scene === 'smelt' || scene === 'pickaxe') {
+  const ore = run.live.find((cell) => cell.kind === 'Ore');
+  const coal = run.live.find((cell) => cell.kind === 'Coal');
+  selected = [ore.id, coal.id];
+  render();
+  $('#craft').click();
+  if (scene === 'pickaxe') {
+    selected = run.live.filter((cell) => ['Bar', 'Wood'].includes(cell.kind)).map((cell) => cell.id);
+    render();
+    $('#craft').click();
+  }
+}

@@ -1,0 +1,3 @@
+/* Completed run Cells are visible evidence, even though they cannot be selected again. */
+.cell:disabled { color: var(--ink); opacity: 1; }
+.cell:disabled:not(.state) { cursor: default; }
