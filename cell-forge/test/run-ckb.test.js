@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { Transaction, hexFrom, WitnessArgs } from '@ckb-ccc/core';
 
 const { Resource, Verifier, DEFAULT_SCRIPT_ALWAYS_SUCCESS } = createRequire(import.meta.url)('ckb-testtool');
-const compiler = process.env.CELLC || '/tmp/cellscript-031/bin/cellc';
+const compiler = process.env.CELLC || 'cellc';
 const artifact = readFileSync(new URL('../build/forge-turn.elf', import.meta.url));
 const capacity = 20000000000n;
 

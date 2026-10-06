@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test test/*.test.js",
-    "test:ckb": "node --test test/ckb.test.js"
+    "test:ckb": "node --test test/ckb.test.js test/run-ckb.test.js",
+    "play": "node src/play.js"
   },
   "dependencies": {
     "@ckb-ccc/core": "1.5.3",

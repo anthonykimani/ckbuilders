@@ -2,14 +2,17 @@
 
 Cell Forge is a solo CKB Cell puzzle. The first level is Ore + Coal → Bar, then Bar + Wood → Pickaxe. This repository is at the **contract experiment** stage, not a playable testnet game.
 
+You can already play the two-turn puzzle locally with `npm run play`. This has no wallet or chain interaction; it uses the same reference rules as the tests. Choose two ingredient Cell IDs when prompted.
+
 The dependency-free JavaScript model in `src/rules.js` describes the two-turn puzzle, including a run-state Cell. `src/forge.cell` verifies one pair recipe. The more complete `src/run.cell` consumes exactly one state Cell and two ingredients, then creates the next state Cell and product. Both use CellScript v0.31.0 `BoundedCellSet` and `BoundedList`, so extra Cells in the current Type Script group are rejected. `units` are game quantities, **not CKB capacity**. The artifacts enforce a 200 CKB output capacity floor; they do not prove exact CKB capacity conservation.
 
 ## Reproduce the current tests
 
-Use WSL/Linux with Node.js 22 and CellScript `cellc` v0.31.0. Set `CELLC` if `cellc` is not at `/tmp/cellscript-031/bin/cellc`.
+Use WSL/Linux with Node.js 22 and CellScript `cellc` v0.31.0 on `PATH`. Set `CELLC` to its full path if needed. The version is pinned because later compilers may generate different artifacts.
 
 ```bash
 npm ci
+cellc --version  # must report 0.31.0
 cellc src/forge.cell --target riscv64-elf --target-profile ckb --entry-action forge_pair -o build/forge-pair.elf
 cellc src/run.cell --target riscv64-elf --target-profile ckb --entry-action forge_turn -o build/forge-turn.elf
 cellc verify-artifact build/forge-pair.elf --verify-sources --json
