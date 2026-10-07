@@ -6,6 +6,14 @@ The [Rust Type Script](rust-contract/README.md) handles start, both moves, and c
 
 You can play the two-turn puzzle in a browser. From `cell-forge/`, run `npm run web` and open `http://127.0.0.1:4173`. Select Ore and Coal, forge a Bar, then select Bar and Wood to forge a Pickaxe. Close the run or start again. The browser is **local practice only**: no wallet, node, or transaction submission. The move history shows game-Cell transitions, while the separate devnet panel links to the real signed local-chain record. `npm run play` remains available as a terminal version.
 
+The first [transaction replay](web/replay.html) is at `http://127.0.0.1:4173/web/replay.html`. Play, pause, or scrub through the signed local-devnet smelt example. The visual shows the three game Cells consumed and two created, with their outpoint indexes, quantities, and game-group capacity. The transaction hash is real, but the Cell layout is reconstructed from [`scripts/devnet-run.mjs`](scripts/devnet-run.mjs); it is **not** a raw RPC export or VM instruction trace. Wallet fee/change Cells are intentionally outside this first view. Importing arbitrary transactions is not implemented yet.
+
+![Smelt replay before the transaction](web/screenshots/04-replay-before.png)
+
+![Smelt replay after the output Cells are created](web/screenshots/05-replay-created.png)
+
+![Smelt replay on a narrow screen](web/screenshots/06-replay-mobile.png)
+
 These are screenshots of the running browser practice at the start, after smelting, and after assembling:
 
 ![Cell Forge starting board](web/screenshots/01-start.png)

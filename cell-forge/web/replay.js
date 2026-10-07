@@ -67,5 +67,9 @@ $('#play').addEventListener('click', () => {
   }, reducedMotion.matches ? 2400 : 1800);
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+const hasStep = new URLSearchParams(location.search).has('step');
 const requested = Number(new URLSearchParams(location.search).get('step') || 0);
 setStep(Number.isInteger(requested) ? requested : 0);
+if (!hasStep && !reducedMotion.matches) {
+  setTimeout(() => { if (!document.hidden && step === 0 && !timer) $('#play').click(); }, 700);
+}

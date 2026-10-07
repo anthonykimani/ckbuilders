@@ -62,6 +62,8 @@ Cell buttons are native buttons. The State Cell is shown but disabled because it
 
 The history lists consumed and created game Cells. The devnet panel is read-only and links to the full local-chain record. No hash is presented as a public explorer link. Hover, active, focus-visible, disabled, and reduced-motion states are defined in `web/style.css`. There are no icon-only actions or remote-loading states.
 
+The transaction replay is the second product surface. It retains the existing palette and type tokens; the dark trace stage uses the same `ink` color. Its input/output Cells are explanatory artifacts, not action buttons. The central script mark and moving pulse are the one expressive moment. Scrubbing and named steps always carry the same information without animation. `web/replay.css` implements these component treatments using the `web/style.css` runtime tokens.
+
 ## Do's and Don'ts
 
 - Do keep a visible distinction between live Cells, spent Cells in history, and signed-chain evidence.
