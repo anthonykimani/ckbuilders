@@ -18,8 +18,10 @@ const FORMAT: u8 = 1;
 const MINT: u8 = 0;
 const REPAIR: u8 = 1;
 const TRANSFER: u8 = 2;
-const DATA_LEN: usize = 102;
-const MIN_CAPACITY: u64 = 30_000_000_000; // 300 CKB; args and 102-byte data occupy less.
+const HEADER_LEN: usize = 102;
+const EVENT_PREFIX_LEN: usize = 102;
+const MAX_DETAIL_LEN: usize = 160;
+const MIN_CAPACITY: u64 = 60_000_000_000; // 600 CKB covers the largest permitted data and both scripts.
 
 struct Passport {
     action: u8,
@@ -29,6 +31,18 @@ struct Passport {
     event_hash: [u8; 32],
     capacity: u64,
     lock_hash: [u8; 32],
+    actor_hash: [u8; 32],
+    recipient_hash: [u8; 32],
+}
+
+fn hash(parts: &[&[u8]]) -> [u8; 32] {
+    let mut result = [0u8; 32];
+    let mut hasher = blake2b_ref::Blake2bBuilder::new(32)
+        .personal(b"ckb-default-hash")
+        .build();
+    for part in parts { hasher.update(part); }
+    hasher.finalize(&mut result);
+    result
 }
 
 fn read(index: usize, source: Source) -> Result<Option<Passport>, i8> {
@@ -37,13 +51,24 @@ fn read(index: usize, source: Source) -> Result<Option<Passport>, i8> {
         Err(SysError::IndexOutOfBound) => return Ok(None),
         Err(_) => return Err(1),
     };
-    if data.len() != DATA_LEN || data[0] != FORMAT {
+    if data.len() < HEADER_LEN + EVENT_PREFIX_LEN || data[0] != FORMAT {
         return Err(2);
     }
     let sequence = u32::from_le_bytes(data[2..6].try_into().map_err(|_| 2)?);
     let item_id = data[6..38].try_into().map_err(|_| 2)?;
     let history_root = data[38..70].try_into().map_err(|_| 2)?;
     let event_hash = data[70..102].try_into().map_err(|_| 2)?;
+    let event = &data[HEADER_LEN..];
+    let detail_len = event[101] as usize;
+    if detail_len == 0 || detail_len > MAX_DETAIL_LEN || event.len() != EVENT_PREFIX_LEN + detail_len
+        || core::str::from_utf8(&event[102..]).is_err()
+        || event[0] != data[1] || event[1..5] != data[2..6]
+        || event[5..37] != data[6..38] || hash(&[event]) != event_hash
+    {
+        return Err(24);
+    }
+    let actor_hash = event[37..69].try_into().map_err(|_| 24)?;
+    let recipient_hash = event[69..101].try_into().map_err(|_| 24)?;
     Ok(Some(Passport {
         action: data[1],
         sequence,
@@ -52,18 +77,13 @@ fn read(index: usize, source: Source) -> Result<Option<Passport>, i8> {
         event_hash,
         capacity: load_cell_capacity(index, source).map_err(|_| 3)?,
         lock_hash: load_cell_lock_hash(index, source).map_err(|_| 4)?,
+        actor_hash,
+        recipient_hash,
     }))
 }
 
 fn root(previous: &[u8; 32], event: &[u8; 32]) -> [u8; 32] {
-    let mut result = [0u8; 32];
-    let mut hasher = blake2b_ref::Blake2bBuilder::new(32)
-        .personal(b"ckb-default-hash")
-        .build();
-    hasher.update(previous);
-    hasher.update(event);
-    hasher.finalize(&mut result);
-    result
+    hash(&[previous, event])
 }
 
 fn validate() -> Result<(), i8> {
@@ -88,7 +108,7 @@ fn validate() -> Result<(), i8> {
                 return Err(11);
             }
             let owner = load_cell_lock_hash(0, Source::Input).map_err(|_| 12)?;
-            if next.lock_hash != owner
+            if next.lock_hash != owner || next.actor_hash != owner || next.recipient_hash != owner
                 || next.item_id == [0u8; 32]
                 || next.history_root != root(&next.item_id, &next.event_hash)
             {
@@ -110,7 +130,8 @@ fn validate() -> Result<(), i8> {
             }
             match next.action {
                 REPAIR => {
-                    if old.lock_hash != next.lock_hash {
+                    if old.lock_hash != next.lock_hash || next.recipient_hash != next.lock_hash
+                        || next.actor_hash != args[36..68] {
                         return Err(15);
                     }
                     let attester = &args[36..68];
@@ -131,7 +152,8 @@ fn validate() -> Result<(), i8> {
                     }
                 }
                 TRANSFER => {
-                    if old.lock_hash == next.lock_hash {
+                    if old.lock_hash == next.lock_hash || next.actor_hash != old.lock_hash
+                        || next.recipient_hash != next.lock_hash {
                         return Err(18);
                     }
                 }
