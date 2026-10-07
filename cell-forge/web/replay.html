@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smelt replay · Cell Forge</title>
+  <link rel="stylesheet" href="/web/style.css">
+  <link rel="stylesheet" href="/web/replay.css">
+  <script type="module" src="/web/replay.js"></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar"><a class="brand" href="/">CELL<span>FORGE</span></a><nav aria-label="Project"><a href="/">Play the puzzle</a><span aria-current="page">Transaction replay</span></nav></header>
+    <div class="replay-intro"><div><p class="eyebrow">TRANSACTION REPLAY / 01</p><h1>Watch a Cell<br>change hands.</h1><p>Follow the smelt move that committed on our isolated local CKB devnet. Scrub the timeline to see which Cells were spent and what replaced them.</p></div><div class="replay-id"><span>LOCAL DEVNET · COMMITTED</span><strong>Smelt: Ore + Coal → Bar</strong><code id="tx-hash"></code></div></div>
+    <section class="theatre" id="theatre" data-step="0" aria-labelledby="theatre-heading">
+      <div class="theatre-header"><div><p class="stage-kicker">CELL TRANSITION / TYPE SCRIPT GROUP</p><h2 id="theatre-heading">Before → After</h2></div><span class="stage-count" id="stage-count">01 / 04</span></div>
+      <div class="flow" aria-label="Transaction Cell transition">
+        <div class="flow-side"><div class="flow-heading"><span>INPUT CELLS</span><small>from start transaction</small></div><div id="inputs" class="cell-stack"></div></div>
+        <div class="flow-core" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="core-symbol">✳</div><div class="pulse pulse-one"></div><div class="pulse pulse-two"></div><span>RUST TYPE SCRIPT</span></div>
+        <div class="flow-side"><div class="flow-heading"><span>OUTPUT CELLS</span><small>from smelt transaction</small></div><div id="outputs" class="cell-stack"></div></div>
+      </div>
+      <div class="capacity-strip"><span>GAME-CELL CAPACITY</span><strong>600 CKB in <b>→</b> 600 CKB out</strong><small>Fee and change Cells are not shown</small></div>
+    </section>
+    <section class="transport" aria-label="Replay controls"><div class="transport-buttons"><button id="previous" type="button" aria-label="Previous step">←</button><button id="play" type="button">Play replay</button><button id="next" type="button" aria-label="Next step">→</button></div><div class="scrubber"><label for="timeline">Replay step: <span id="step-label">Before</span></label><input id="timeline" type="range" min="0" max="3" step="1" value="0"><div class="ticks" aria-hidden="true"><span>BEFORE</span><span>CHECK</span><span>SPEND</span><span>CREATE</span></div></div></section>
+    <section class="notes"><div class="step-note"><p class="eyebrow">WHAT YOU'RE SEEING</p><h2 id="step-title"></h2><p id="step-detail" role="status" aria-live="polite"></p></div><div class="source-note"><p class="eyebrow">EVIDENCE BOUNDARY</p><h2>Real hash. Explanatory motion.</h2><p id="source-detail"></p><a href="https://github.com/anthonykimani/ckbuilders/blob/main/cell-forge/DEVNET.md">Read the devnet record ↗</a></div></section>
+    <footer>Cell Forge · The animation explains the transaction shape; it does not replay VM instructions or submit a transaction.</footer>
+  </main>
+</body>
+</html>
