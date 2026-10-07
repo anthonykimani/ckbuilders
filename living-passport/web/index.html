@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Living Passport — laptop history workspace</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="masthead">
+      <a class="wordmark" href="/" aria-label="Living Passport home"><span class="wordmark-mark">LP</span><span>Living Passport</span></a>
+      <span class="mode-label"><span class="mode-dot"></span> Local draft workspace</span>
+    </header>
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">A record that moves with the machine</p>
+          <h1 id="page-title">Know what happened<br><em>before it was yours.</em></h1>
+          <p class="intro-copy">Follow a laptop through repairs and owners. This workspace drafts the record locally; the CKB contract behind it is tested separately, but these browser actions are not signed transactions.</p>
+        </div>
+        <div class="intro-index" aria-hidden="true"><span>OBJECT / 01</span><span>OWNERSHIP · SERVICE · HISTORY</span></div>
+      </section>
+
+      <div class="workspace">
+        <section class="device-panel" aria-labelledby="device-heading">
+          <div class="panel-head"><span class="panel-kicker">THE OBJECT</span><span id="sequence-badge" class="index-badge">NO RECORD</span></div>
+          <div class="device-art" aria-hidden="true">
+            <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+            <div class="laptop-screen"><div class="screen-glow"></div><div class="screen-line"></div><div class="screen-line short"></div><div class="screen-grid"></div></div>
+            <div class="laptop-hinge"></div><div class="laptop-base"><div class="key-grid"></div><div class="trackpad"></div></div>
+            <div class="device-beam"></div>
+          </div>
+          <div class="device-summary">
+            <p class="eyebrow">LAPTOP PASSPORT</p>
+            <h2 id="device-heading">No laptop yet</h2>
+            <p id="device-subtitle">Create a local record to see its lifecycle.</p>
+            <div class="fact-grid">
+              <div><span class="fact-label">Current owner</span><strong id="owner-value">—</strong></div>
+              <div><span class="fact-label">Repair workshop</span><strong id="repairer-value">—</strong></div>
+            </div>
+            <div class="hash-box"><span>ITEM ID</span><code id="item-id">Created with first draft</code></div>
+          </div>
+        </section>
+
+        <section class="history-panel" aria-labelledby="history-heading">
+          <div class="panel-head"><span class="panel-kicker">THE RECORD</span><span id="event-count" class="index-badge">0 EVENTS</span></div>
+          <h2 id="history-heading">A history you can follow.</h2>
+          <p class="section-copy">Select a step to inspect what changed. Each new event links to the prior record; the contract tests check that link.</p>
+          <div id="timeline" class="timeline" aria-label="Passport events"><p class="empty-note">The first event will appear here after you create a draft.</p></div>
+          <div id="event-detail" class="event-detail" hidden>
+            <div class="detail-top"><span id="detail-kind">EVENT</span><span id="detail-sequence">#0</span></div>
+            <h3 id="detail-title"></h3><p id="detail-description"></p>
+            <dl><div><dt>Event hash</dt><dd><code id="detail-hash"></code></dd></div><div><dt>History root</dt><dd><code id="detail-root"></code></dd></div></dl>
+          </div>
+        </section>
+      </div>
+
+      <section class="actions" aria-labelledby="actions-heading">
+        <div class="actions-intro"><p class="eyebrow">NEXT STEP</p><h2 id="actions-heading">Work on the record</h2><p>Try the lifecycle with names and repair notes. Nothing here is broadcast, signed or saved when the server stops.</p></div>
+        <div class="actions-main">
+          <form id="create-form" class="action-form" novalidate>
+            <h3>Create a laptop draft</h3>
+            <div class="field-pair"><label>Model <input name="model" maxlength="80" placeholder="e.g. ThinkPad T480" aria-describedby="create-error" required></label><label>Current owner <input name="owner" maxlength="80" placeholder="e.g. Amina" aria-describedby="create-error" required></label></div>
+            <label>Repair workshop <input name="repairer" maxlength="80" placeholder="Workshop name" aria-describedby="create-error" required></label>
+            <p class="form-hint">The workshop name is a draft label, not a verified identity.</p>
+            <p id="create-error" class="form-error" role="alert" hidden></p><button type="submit">Create draft</button>
+          </form>
+          <form id="repair-form" class="action-form" novalidate hidden>
+            <h3>Add a repair note</h3>
+            <label>Work carried out <textarea name="detail" maxlength="280" rows="3" placeholder="What was repaired or replaced?" aria-describedby="repair-error" required></textarea></label>
+            <label>Workshop <input name="workshop" maxlength="80" aria-describedby="repair-error" required></label>
+            <p class="form-hint">In a real transaction, the configured workshop Lock must participate. This local form does not sign for it.</p>
+            <p id="repair-error" class="form-error" role="alert" hidden></p><button type="submit">Add local repair</button>
+          </form>
+          <form id="transfer-form" class="action-form" novalidate hidden>
+            <h3>Draft a transfer</h3>
+            <label>New owner <input name="nextOwner" maxlength="80" placeholder="Who receives this laptop?" aria-describedby="transfer-error" required></label>
+            <p class="form-hint">On-chain, the current owner's Lock must authorize a transfer to the new Lock. This is only a local preview.</p>
+            <p id="transfer-error" class="form-error" role="alert" hidden></p><button type="submit">Transfer local record</button>
+          </form>
+          <div id="action-tabs" class="action-tabs" hidden><button type="button" data-form="repair" aria-pressed="true">Repair</button><button type="button" data-form="transfer" aria-pressed="false">Transfer</button><button type="button" id="export-button">Export JSON</button></div>
+        </div>
+      </section>
+      <aside class="boundary-note"><strong>What is actually verified?</strong><span>The Rust Type Script and its CKB-VM tests verify Cell transitions. This browser workspace makes drafts only. A real passport still needs wallet signing, network submission, a way to preserve event details, and trustworthy repairer identities.</span></aside>
+    </main>
+    <footer><span>Living Passport / early build</span><span>Built on the CKB Cell model</span></footer>
+  </div>
+</body>
+</html>

@@ -70,7 +70,9 @@ fn validate() -> Result<(), i8> {
     let script = load_script().map_err(|_| 5)?;
     let args = script.args().raw_data();
     // One-use funding OutPoint, then the trusted repair-attester Lock hash.
-    if args.len() != 68 { return Err(6); }
+    if args.len() != 68 {
+        return Err(6);
+    }
     let previous = read(0, Source::GroupInput)?;
     let next = read(0, Source::GroupOutput)?.ok_or(7)?;
     if read(1, Source::GroupInput)?.is_some() || read(1, Source::GroupOutput)?.is_some() {
@@ -86,33 +88,52 @@ fn validate() -> Result<(), i8> {
                 return Err(11);
             }
             let owner = load_cell_lock_hash(0, Source::Input).map_err(|_| 12)?;
-            if next.lock_hash != owner || next.item_id == [0u8; 32]
-                || next.history_root != root(&next.item_id, &next.event_hash) {
+            if next.lock_hash != owner
+                || next.item_id == [0u8; 32]
+                || next.history_root != root(&next.item_id, &next.event_hash)
+            {
                 return Err(13);
             }
         }
         Some(old) => {
-            if old.item_id != next.item_id { return Err(20); }
-            if old.sequence == u32::MAX || next.sequence != old.sequence + 1 { return Err(21); }
-            if next.capacity != old.capacity { return Err(22); }
-            if next.history_root != root(&old.history_root, &next.event_hash) { return Err(23); }
+            if old.item_id != next.item_id {
+                return Err(20);
+            }
+            if old.sequence == u32::MAX || next.sequence != old.sequence + 1 {
+                return Err(21);
+            }
+            if next.capacity != old.capacity {
+                return Err(22);
+            }
+            if next.history_root != root(&old.history_root, &next.event_hash) {
+                return Err(23);
+            }
             match next.action {
                 REPAIR => {
-                    if old.lock_hash != next.lock_hash { return Err(15); }
+                    if old.lock_hash != next.lock_hash {
+                        return Err(15);
+                    }
                     let attester = &args[36..68];
                     let mut found = false;
                     for index in 0..64 {
                         match load_cell_lock_hash(index, Source::Input) {
-                            Ok(lock_hash) if lock_hash == attester => { found = true; break; }
+                            Ok(lock_hash) if lock_hash == attester => {
+                                found = true;
+                                break;
+                            }
                             Ok(_) => (),
                             Err(SysError::IndexOutOfBound) => break,
                             Err(_) => return Err(16),
                         }
                     }
-                    if !found { return Err(17); }
+                    if !found {
+                        return Err(17);
+                    }
                 }
                 TRANSFER => {
-                    if old.lock_hash == next.lock_hash { return Err(18); }
+                    if old.lock_hash == next.lock_hash {
+                        return Err(18);
+                    }
                 }
                 _ => return Err(19),
             }
@@ -122,5 +143,8 @@ fn validate() -> Result<(), i8> {
 }
 
 fn main() -> i8 {
-    match validate() { Ok(()) => 0, Err(code) => code }
+    match validate() {
+        Ok(()) => 0,
+        Err(code) => code,
+    }
 }

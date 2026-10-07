@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test test/*.test.js",
+    "test:local": "node --test test/passport.test.js",
     "web": "node scripts/serve-web.mjs"
   },
   "dependencies": {
