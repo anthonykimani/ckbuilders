@@ -34,11 +34,11 @@ components:
 
 ## Overview
 
-The audience is someone checking or updating the history of a second-hand laptop. The page's job is to show the current owner, explain the provenance of every event, and let someone prepare a local draft of the next step. The visual reference is a repair-bench service sheet with a device silhouette, not a token marketplace or a crypto dashboard.
+The audience is someone checking or updating the history of a second-hand laptop. The page's job is to show the current owner, explain the provenance of every event, and let someone take the next step on an isolated local CKB devnet or, when it is unavailable, prepare an in-memory draft. The visual reference is a repair-bench service sheet with a device silhouette, not a token marketplace or a crypto dashboard.
 
 ## Colors
 
-Steel-blue surfaces echo equipment labels. Cobalt identifies controls, while copper identifies the currently inspected lifecycle event. Neither color means a transaction is confirmed. A persistent local-draft label communicates that boundary in words.
+Steel-blue surfaces echo equipment labels. Cobalt identifies controls, while copper identifies the currently inspected lifecycle event. Neither color means a transaction is confirmed. A persistent text label distinguishes signed local-devnet mode from in-memory draft mode.
 
 ## Typography
 
@@ -58,10 +58,10 @@ Cards rely on borders and a quiet inner highlight. The exploded laptop illustrat
 
 ## Components
 
-Native buttons and labelled fields handle all actions. Errors stay inline and focus returns to the relevant form. The timeline uses ordinary buttons with visible selected states. No browser-native alert, prompt or confirm is used. Reduced-motion users see the same information without movement.
+Native buttons and labelled fields handle all actions. Errors stay inline and focus returns to the relevant form. A devnet mutation waits for node confirmation before the timeline changes; its button names the pending confirmation. The timeline uses ordinary buttons with visible selected states and shows committed transaction hashes in devnet mode. No browser-native alert, prompt or confirm is used. Reduced-motion users see the same information without movement.
 
 ## Do's and Don'ts
 
-- Do distinguish local drafts, CKB-VM contract tests and actual chain transactions.
+- Do distinguish local drafts, CKB-VM contract tests, signed local-devnet transactions and public-chain deployment.
 - Do show who *entered* a repair note without claiming the physical work was verified.
-- Don't call a local action minted, signed or on-chain.
+- Don't present a local-devnet transaction as a public testnet or mainnet transaction, or a typed name as a verified Lock identity.

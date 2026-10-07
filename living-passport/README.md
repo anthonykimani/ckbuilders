@@ -1,18 +1,18 @@
 # Living Passport
 
-An early CKB prototype for a laptop record that can survive a change of owner. Its first three transitions are **mint → repair attestation → transfer**. Each transition consumes one passport Cell and creates one successor. The Rust Type Script checks a unique starting OutPoint, stable item ID, sequence, hash-linked event history, unchanged capacity, the configured repair attester's participating Lock, and a changed owner Lock on transfer.
+A local CKB experiment for a second-hand laptop. A passport Cell moves through creation, a workshop-signed repair, and a change of owner. The browser can now submit those transitions to an isolated CKB devnet, using **disposable development keys held by the local server**. It is not a public testnet deployment, a browser-wallet integration, or proof that a physical repair occurred.
 
-The browser workspace lets you create a laptop draft, add a repair note, transfer the draft record and export its JSON history. Run `npm run web` from this directory and open `http://127.0.0.1:4184`. It stores one in-memory draft while the local server runs; a restart clears it. The workshop and owner names in this view are labels, **not cryptographic identities**. The interface does not construct or sign the transactions exercised by the contract tests.
+Open the running prototype at [http://127.0.0.1:4185/](http://127.0.0.1:4185/). Without the devnet environment variables below, `npm run web` still serves the original in-memory draft mode on port 4184; the page labels its mode.
 
-![Living Passport local workspace showing a three-event laptop history](web/screenshots/desktop.png)
+## What the contract binds
 
-![The same local record on a narrow screen](web/screenshots/mobile.png)
+The Type Script requires one input passport and one successor on every update. Its 68-byte args hold a unique funding OutPoint and the configured workshop Lock hash. The successor Cell data contains a 102-byte header and a canonical event: action (1 byte), sequence (4), item ID (32), actor Lock hash (32), recipient Lock hash (32), UTF-8 detail length (1), and the readable detail (1–160 bytes). The contract recomputes the event hash from those exact bytes and chains it into the history root. It checks the action, sequence, item ID, current/next Lock hashes, workshop input, unchanged 600 CKB passport capacity, and the one-use mint funding OutPoint.
 
-This is a **local contract experiment**, not a deployed product or proof that a physical repair happened. The test suite uses mock Cells and an `alwaysSuccess` Lock; that Lock must never hold real assets. A repair attestation means an input under the configured attester Lock participated in the transaction. It does not independently verify the workshop, device, or work performed. Event details are off-chain and represented by a hash in the Cell; preserving those details is an application responsibility.
+The readable detail and intended recipient are therefore part of what the contract verifies, not merely text next to an unrelated digest. The local node verifies standard secp256k1 signatures for the owner and workshop inputs. A name such as “Amina” or “Bench 01” remains an unverified label; the actual authorization is the Lock. Anyone using this beyond local development must consider privacy because the event text is public and permanent on a chain.
 
-## Verify
+## Verify the contract
 
-Run in WSL/Linux with Rust's `riscv64imac-unknown-none-elf` target and Node.js 22:
+In WSL/Linux, with Rust's `riscv64imac-unknown-none-elf` target and Node.js 22:
 
 ```bash
 cd living-passport/rust-contract
@@ -22,12 +22,32 @@ npm ci
 npm test
 ```
 
-For the local draft rules alone, `node --test test/passport.test.js` also runs on Windows. The CKB-VM debugger in `ckb-testtool` was verified in WSL/Linux for this project.
+The CKB-VM tests cover mint, repair and transfer, plus forged details, wrong actor/recipient, missing attester, wrong identity, skipped sequence, rewritten history and changed capacity. The ordinary draft tests remain separate.
 
-The CKB-VM tests accept mint, repair and transfer, then reject a reused mint identity, redirected mint, repair without an attester, redirected repair, no-op transfer, skipped sequence, changed item ID, rewritten history, changed capacity and zero event hash.
+## Reproduce signed local-devnet transactions
 
-## Contract boundary
+Start an isolated OffCKB devnet, deploy the built `living-passport-type` binary without Type ID, and set the two paths below to OffCKB's bundled **development-only** key file and generated `scripts.json`. The runner refuses non-local RPC and chains whose name does not contain `dev`. The standard secp256k1 CellDep is pinned to the OffCKB devnet used here; check it if the devnet version differs. Never use these keys on a public network.
 
-Type Script args are 68 bytes: the 36-byte first funding OutPoint, followed by the 32-byte authorized repairer's Lock hash. One passport Cell exists per transaction group. Its 102-byte data holds a format version, action, sequence number, item ID, history root and latest event hash. The history root is `CKB_BLAKE2B(previous_root || event_hash)`; at mint, `item_id` substitutes for `previous_root`.
+```bash
+PASSPORT_DEVNET_KEYS=/path/to/@offckb/cli/account/keys \
+PASSPORT_DEVNET_DEPLOYMENT=/path/to/deployment/scripts.json \
+node scripts/devnet-run.mjs
+```
 
-The initial version uses 300 CKB capacity for each passport Cell. That capacity remains with the Cell through repair and transfer; it is not a fee or a price. The current script has no close/reclaim transition. It does not bind a transfer's event hash to the new owner's Lock, nor an event's human-readable fields to an on-chain schema. It has not been run on public testnet. Those limits must be addressed before calling this a product for real items.
+That script signs and waits for creation, repair, transfer, another repair by the new owner, and a return transfer. To connect the browser to the same local chain:
+
+```bash
+PORT=4185 \
+PASSPORT_DEVNET_KEYS=/path/to/@offckb/cli/account/keys \
+PASSPORT_DEVNET_DEPLOYMENT=/path/to/deployment/scripts.json \
+PASSPORT_DEVNET_STATE=/tmp/living-passport-state.json \
+npm run web
+```
+
+The state file is a local index of the submitted passport, **not** its authority. On restart, the service checks that its latest Cell data matches a committed transaction on the node. Do not reuse that file after resetting the devnet. Each browser action waits for confirmation and then shows the transaction hash. If submission times out, inspect the local node before trying again because the result may be uncertain.
+
+## Boundaries
+
+This prototype has three fixed development Lock identities: first owner, workshop, second owner. It alternates the two owner Locks on transfers; the typed name is a label and cannot specify an arbitrary wallet. The signing keys never enter the browser, but the local service is not a safe signer for real funds. There is no key-ownership challenge for a real buyer, workshop accreditation, physical device identity check, private-data policy, public-chain indexer, or close/reclaim transition. The 600 CKB is locked into the passport Cell across its updates; it is not a service fee.
+
+The earlier workspace screenshots showed draft mode; they are not evidence of signed transactions. For the actual local-chain run, see [DEVNET.md](DEVNET.md).
