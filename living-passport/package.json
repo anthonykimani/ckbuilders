@@ -1,0 +1,13 @@
+{
+  "name": "living-passport",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "web": "node scripts/serve-web.mjs"
+  },
+  "dependencies": {
+    "@ckb-ccc/core": "1.5.3",
+    "ckb-testtool": "1.0.5"
+  }
+}
