@@ -28,8 +28,8 @@ export async function loadPassport(client, deployment, args) {
     const output = tx.outputs[index];
     if (!output?.type || output.type.hash() !== type.hash()) throw new Error('Passport Type Script changed in its history.');
     const record = decodeRecord(tx.outputsData[index]);
-    if (output.lock.hash() !== record.recipientHash || output.capacity !== CAPACITY) throw new Error('Passport output does not match its recorded recipient or capacity.');
-    backwards.push({ ...record, txHash: point.txHash, outputIndex: index });
+    if (output.lock.hash() !== record.recipientHash || output.capacity < CAPACITY) throw new Error('Passport output does not match its recorded recipient or minimum capacity.');
+    backwards.push({ ...record, txHash: point.txHash, outputIndex: index, outputCapacity: output.capacity });
     let predecessor = null;
     for (const inputLike of tx.inputs) {
       const input = CellInput.from(inputLike);
@@ -56,7 +56,8 @@ export async function loadPassport(client, deployment, args) {
   const latest = events.at(-1);
   if (live.outputData !== txData(latest, await committed(latest.txHash))
     || live.cellOutput.lock.hash() !== latest.recipientHash) throw new Error('The live Cell does not match its confirmed history.');
-  return { id: args, itemId: latest.itemId, ownerLockHash: latest.recipientHash, sequence: latest.sequence, historyRoot: latest.historyRoot, capacity: CAPACITY, events };
+  if (events.some((event) => event.outputCapacity !== undefined && event.outputCapacity !== live.cellOutput.capacity)) throw new Error('Passport capacity changed in its history.');
+  return { id: args, itemId: latest.itemId, ownerLockHash: latest.recipientHash, sequence: latest.sequence, historyRoot: latest.historyRoot, capacity: live.cellOutput.capacity, events };
 }
 
 function txData(event, tx) { return tx.outputsData[event.outputIndex]; }

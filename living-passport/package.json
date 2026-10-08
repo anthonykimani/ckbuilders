@@ -5,10 +5,18 @@
   "scripts": {
     "test": "node --test test/*.test.js",
     "test:local": "node --test test/passport.test.js",
-    "web": "node scripts/serve-web.mjs"
+    "web": "node scripts/serve-web.mjs",
+    "public:dev": "vite public-web --host 127.0.0.1 --port 4186",
+    "public:build": "vite build public-web --outDir dist-public"
   },
   "dependencies": {
-    "@ckb-ccc/core": "1.5.3",
-    "ckb-testtool": "1.0.5"
+    "@ckb-ccc/connector-react": "2.2.2",
+    "@ckb-ccc/core": "1.23.0",
+    "ckb-testtool": "1.0.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "vite": "8.3.4"
   }
 }

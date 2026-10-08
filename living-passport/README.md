@@ -1,5 +1,7 @@
 # Living Passport
 
+The new [public-testnet preview](PUBLIC_TESTNET.md) adds a browser-wallet connector, an on-chain history reader, and wallet-reviewed create/transfer flows. It is **not deployed to public testnet yet**; the contract address fields are intentionally empty. The signed local-devnet prototype below remains reproducible.
+
 A local CKB experiment for a second-hand laptop. A passport Cell moves through creation, a workshop-signed repair, and a change of owner. The browser can now submit those transitions to an isolated CKB devnet, using **disposable development keys held by the local server**. It is not a public testnet deployment, a browser-wallet integration, or proof that a physical repair occurred.
 
 Open the running prototype at [http://127.0.0.1:4185/](http://127.0.0.1:4185/). Without the devnet environment variables below, `npm run web` still serves the original in-memory draft mode on port 4184; the page labels its mode.
