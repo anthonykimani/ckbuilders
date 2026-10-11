@@ -11,13 +11,14 @@ Learning reports and projects by Anthony Kimani.
 - [Week 5](weekly-reports/week-five/week-five.md) — verification and production-readiness review
 - [Week 6](weekly-reports/week-six/week-six.md) — CellScript escrow deep dive
 - [Week 7](weekly-reports/week-seven/week-seven.md) — escrow group-input check and the read-only CKB Cell Inspector
+- [Week 8](weekly-reports/week-eight/week-eight.md) — Living Passport: signed local lifecycle and public-testnet preview
 
 ## Featured projects
 
 - [CellEscrow](cell-escrow/README.md)
 - [Fiber Invoice Lab](fiber-invoice-lab/README.md)
 - [Cell Forge](cell-forge/README.md) — playable local puzzle and CellScript Type Script experiment
-- [Living Passport](living-passport/README.md) — laptop ownership and repair-history Cell prototype with a local browser workspace
+- [Living Passport](living-passport/README.md) — a history Cell for second-hand equipment, tested first with a laptop
 
 See [PROJECTS.md](PROJECTS.md) for the combined project overview.
 
