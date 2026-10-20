@@ -7,6 +7,11 @@ export function passportType(deployment, args) {
   return Script.from({ codeHash: deployment.codeHash, hashType: deployment.hashType, args });
 }
 
+// Type Script args: 36-byte one-use funding OutPoint, then the workshop Lock hash.
+export function workshopLockHash(args) {
+  return `0x${args.slice(2 + 72)}`;
+}
+
 export async function loadPassport(client, deployment, args) {
   const type = passportType(deployment, args);
   const live = await client.findSingletonCellByType(type, true);
@@ -57,7 +62,7 @@ export async function loadPassport(client, deployment, args) {
   if (live.outputData !== txData(latest, await committed(latest.txHash))
     || live.cellOutput.lock.hash() !== latest.recipientHash) throw new Error('The live Cell does not match its confirmed history.');
   if (events.some((event) => event.outputCapacity !== undefined && event.outputCapacity !== live.cellOutput.capacity)) throw new Error('Passport capacity changed in its history.');
-  return { id: args, itemId: latest.itemId, ownerLockHash: latest.recipientHash, sequence: latest.sequence, historyRoot: latest.historyRoot, capacity: live.cellOutput.capacity, events };
+  return { id: args, itemId: latest.itemId, workshopLockHash: workshopLockHash(args), ownerLockHash: latest.recipientHash, sequence: latest.sequence, historyRoot: latest.historyRoot, capacity: live.cellOutput.capacity, events };
 }
 
 function txData(event, tx) { return tx.outputsData[event.outputIndex]; }

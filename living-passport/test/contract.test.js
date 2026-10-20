@@ -11,7 +11,7 @@ const itemId = hashCkb(new TextEncoder().encode('example-laptop-serial-001'));
 const bytes = (value) => Buffer.from(value.slice(2), 'hex');
 const lockBinary = hexFrom(readFileSync(DEFAULT_SCRIPT_ALWAYS_SUCCESS));
 
-async function verify({ kind, before, mutate, attested = false, recipient = false, wrongId = false }) {
+async function verify({ kind, before, mutate, attested = false, recipient = false, wrongId = false, close = false, extraInput = false }) {
   const resource = Resource.default();
   const tx = Transaction.default();
   const deployed = resource.deployCell(hexFrom(binary), tx, false);
@@ -29,8 +29,14 @@ async function verify({ kind, before, mutate, attested = false, recipient = fals
   if (before) tx.inputs.push(Resource.createCellInput(resource.mockCell(owner, type, records[before].data, CAPACITY)));
   else tx.inputs.push(Resource.createCellInput(funding));
   if (attested) tx.inputs.push(Resource.createCellInput(resource.mockCell(attester, undefined, '0x', 6_100_000_000n)));
-  tx.outputs.push(Resource.createCellOutput(recipient ? newOwner : owner, type, after.capacity ?? CAPACITY));
-  tx.outputsData.push(after.data);
+  if (extraInput) tx.inputs.push(Resource.createCellInput(resource.mockCell(owner, type, records.mint.data, CAPACITY)));
+  if (close) {
+    tx.outputs.push(Resource.createCellOutput(owner, undefined, CAPACITY));
+    tx.outputsData.push('0x');
+  } else {
+    tx.outputs.push(Resource.createCellOutput(recipient ? newOwner : owner, type, after.capacity ?? CAPACITY));
+    tx.outputsData.push(after.data);
+  }
   const verifier = Verifier.from(resource, tx);
   verifier.setWasmDebuggerEnabled(true);
   const results = await verifier.verify({ codeHash: type.hash() });
@@ -67,4 +73,14 @@ test('CKB-VM rejects forged data and recipient bindings', async () => {
     const result = await verify(scenario);
     assert.notEqual(result.scriptErrorCode, 0, `${name} unexpectedly passed`);
   }
+});
+
+test('CKB-VM lets the owner close a passport and reclaim its capacity', async () => {
+  const result = await verify({ kind: 'repair', before: 'repair', close: true });
+  assert.equal(result.scriptErrorCode, 0, result.stdout);
+});
+
+test('CKB-VM rejects closing two passports in one transaction', async () => {
+  const result = await verify({ kind: 'repair', before: 'repair', close: true, extraInput: true });
+  assert.notEqual(result.scriptErrorCode, 0);
 });

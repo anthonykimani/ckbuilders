@@ -42,6 +42,7 @@ export async function createPassport(signer, deployment, { model, owner, worksho
   const description = `${text(model, 80)} / ${text(owner, 60)}`;
   const workshop = await Address.fromString(workshopAddress.trim(), signer.client);
   const ownerLock = (await signer.getRecommendedAddressObj()).script;
+  if (workshop.script.hash() === ownerLock.hash()) throw new Error('The workshop must be a different wallet from the owner.');
   const funding = await pureCell(signer, CAPACITY + 100_000_000n);
   const random = crypto.getRandomValues(new Uint8Array(16));
   const itemId = hashCkb(bytesConcat(bytesFrom(funding.outPoint.toBytes()), random));
@@ -51,7 +52,7 @@ export async function createPassport(signer, deployment, { model, owner, worksho
   const tx = Transaction.default();
   addInput(tx, funding);
   tx.addOutput({ lock: ownerLock, type, capacity: CAPACITY }, record.data);
-  tx.cellDeps.push(cellDep(deployment));
+  tx.addCellDeps(cellDep(deployment));
   const txHash = await submit(signer, tx);
   return { args, txHash };
 }
@@ -69,6 +70,20 @@ export async function transferPassport(signer, deployment, passport, { recipient
   const tx = Transaction.default();
   addInput(tx, oldCell);
   tx.addOutput({ lock: recipient.script, type, capacity: oldCell.cellOutput.capacity }, record.data);
-  tx.cellDeps.push(cellDep(deployment));
+  tx.addCellDeps(cellDep(deployment));
+  return submit(signer, tx);
+}
+
+// Spends the passport with no successor, returning its capacity to the owner as change.
+export async function closePassport(signer, deployment, passport) {
+  testnet(signer);
+  const type = passportType(deployment, passport.id);
+  const oldCell = await signer.client.findSingletonCellByType(type, true);
+  if (!oldCell) throw new Error('The passport Cell is no longer live. Reload its history.');
+  const ownerLock = (await signer.getRecommendedAddressObj()).script;
+  if (oldCell.cellOutput.lock.hash() !== ownerLock.hash()) throw new Error('Only the current owner can close this passport.');
+  const tx = Transaction.default();
+  addInput(tx, oldCell);
+  tx.addCellDeps(cellDep(deployment));
   return submit(signer, tx);
 }

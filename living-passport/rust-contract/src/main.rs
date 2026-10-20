@@ -94,10 +94,16 @@ fn validate() -> Result<(), i8> {
         return Err(6);
     }
     let previous = read(0, Source::GroupInput)?;
-    let next = read(0, Source::GroupOutput)?.ok_or(7)?;
     if read(1, Source::GroupInput)?.is_some() || read(1, Source::GroupOutput)?.is_some() {
         return Err(8);
     }
+    let next = match (&previous, read(0, Source::GroupOutput)?) {
+        (_, Some(next)) => next,
+        // Close: the owner's Lock already authorised spending the passport, so the
+        // capacity is released with no successor. History stays in past transactions.
+        (Some(_), None) => return Ok(()),
+        (None, None) => return Err(7),
+    };
     if next.capacity < MIN_CAPACITY || next.event_hash == [0u8; 32] {
         return Err(9);
     }

@@ -2,3 +2,5 @@ node_modules/
 .npm-cache/
 rust-contract/target/
 dist-public/
+.deploy/
+.env.local

@@ -12,6 +12,9 @@
   "dependencies": {
     "@ckb-ccc/connector-react": "2.2.2",
     "@ckb-ccc/core": "1.23.0",
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/geist-mono": "5.3.0",
+    "@phosphor-icons/react": "2.1.10",
     "ckb-testtool": "1.0.5",
     "react": "19.3.0",
     "react-dom": "19.3.0"

@@ -1,0 +1,9 @@
+{
+  "network": "ckb_testnet",
+  "codeHash": "0xb124f195e1d579f2d8d72325f9b7f232929cf9c7ee802effa071aaa589d1774e",
+  "hashType": "data2",
+  "txHash": "0x0800743595486b5cd4f21d2fac3f26cb59bd0bfdc1ab1310017302185e672401",
+  "index": 0,
+  "binaryBytes": 24024,
+  "deployedAt": "2026-10-20T07:58:46.829Z"
+}
