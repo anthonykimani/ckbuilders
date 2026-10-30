@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ccc } from '@ckb-ccc/connector-react';
 import { Laptop, MagnifyingGlass, Plus, Wallet, SignOut, ShareNetwork, ArrowLeft, Wrench, ArrowsLeftRight, Trash, SealCheck, ShieldCheck, CopySimple, Check } from '@phosphor-icons/react';
 import { closePassport, createPassport, transferPassport } from '../../src/public-actions.js';
-import { loadPassport, passportLink } from '../../src/public-chain.js';
+import { listPassports, loadPassport, passportLink } from '../../src/public-chain.js';
 import { approveRepair, decodeRequest, draftRepair, encodeRequest, reviewRepair } from '../../src/public-repair.js';
 import published from '../deployment.testnet.json';
 import { ACTIONS, Confirm, Copy, Field, Notice, TxLink, ckb, short } from './ui.jsx';
@@ -99,6 +99,7 @@ export default function App() {
       {done && <Notice>{done.text} {done.tx && <TxLink hash={done.tx} />}</Notice>}
 
       {view === 'loading' && <Skeleton />}
+      {view === 'home' && signer && me.lockHash && deployed && <MyDevices client={client} lockHash={me.lockHash} onOpen={openPassport} />}
       {view === 'home' && <Home onOpen={openPassport} onCreate={() => { setError(''); setView('create'); }} disabled={!deployed || !!busy} />}
 
       {view === 'create' && <CreateView signer={signer} me={me} disabled={!deployed || !!busy} onBack={goHome}
@@ -152,6 +153,38 @@ function Skeleton() {
       <div className="card summary skeleton"><span /><span /><span /></div>
       <div className="card timeline-card skeleton"><span /><span /><span /><span /></div>
     </div>
+  </section>;
+}
+
+function MyDevices({ client, lockHash, onOpen }) {
+  const [list, setList] = useState(null);
+  const [failed, setFailed] = useState('');
+  useEffect(() => {
+    let active = true;
+    setList(null); setFailed('');
+    listPassports(client, deployment, lockHash).then((found) => active && setList(found)).catch((cause) => active && setFailed(cause?.message ?? String(cause)));
+    return () => { active = false; };
+  }, [client, lockHash]);
+  const groups = [['owner', 'Devices you own'], ['workshop', 'Devices you service']];
+  return <section className="my-devices">
+    {failed && <Notice kind="error">Could not load your devices: {failed}</Notice>}
+    {!list && !failed && <div className="card skeleton device-skeleton"><span /><span /></div>}
+    {list && !list.length && <p className="muted">No passports for this wallet yet. Create one, or ask the owner to name this wallet as the workshop.</p>}
+    {list && groups.map(([role, title]) => {
+      const items = list.filter((p) => p.role === role);
+      if (!items.length) return null;
+      return <div key={role} className="device-group">
+        <h2>{title} <span className="count">{items.length}</span></h2>
+        <ul className="device-list">{items.map((p) => {
+          const latest = p.events.at(-1);
+          const Icon = ACTIONS[latest.action]?.icon ?? Laptop;
+          return <li key={p.id}><button type="button" className="device" onClick={() => void onOpen(p.id)}>
+            <Laptop size={22} weight="duotone" aria-hidden="true" />
+            <div><strong>{p.events[0].detail}</strong><span><Icon size={14} aria-hidden="true" />{ACTIONS[latest.action]?.label} · {p.events.length} {p.events.length === 1 ? 'event' : 'events'}</span></div>
+          </button></li>;
+        })}</ul>
+      </div>;
+    })}
   </section>;
 }
 
