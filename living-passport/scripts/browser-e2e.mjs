@@ -2,6 +2,9 @@
 //
 //   npm run public:build:e2e && CHROME_PATH=/path/to/chrome npm run test:browser
 //
+// With VITE_INBOX_URL set for both the build and the run (e.g. a local `node inbox/server.mjs`),
+// the owner approves from the home screen instead of opening the link.
+//
 // Phone A (Pixel 5) is the owner, phone B (iPhone 13) is the workshop. Each page gets a
 // throwaway key from .deploy/testnet-keys.json in place of the JoyID popup, which the
 // e2e build accepts and the production build ignores. Screenshots go to SHOTS_DIR.
@@ -27,6 +30,7 @@ const server = createServer((req, res) => {
   res.end(readFileSync(file));
 }).listen(4190, '127.0.0.1');
 const base = 'http://127.0.0.1:4190/';
+const inbox = !!process.env.VITE_INBOX_URL;
 
 const browser = await puppeteer.launch({ executablePath: process.env.CHROME_PATH, args: ['--no-sandbox', '--disable-gpu'] });
 let step = 0;
@@ -92,11 +96,17 @@ try {
   await workshop.waitForSelector('.link-field', { timeout: 120000 });
   const link = await workshop.$eval('.link-field', (el) => el.value);
   await snap(workshop, 'workshop-link-ready');
-  console.log(`[${elapsed()}]   link ${link.length} chars`);
+  console.log(`[${elapsed()}]   link ${link.length} chars${inbox ? ', sent to inbox' : ''}`);
 
   console.log(`[${elapsed()}] owner phone: review and approve`);
   await owner.goto('about:blank');
-  await owner.goto(link);
+  if (inbox) {
+    // The draft went to the inbox: the owner finds it on their home screen, no link needed.
+    await owner.goto(base);
+    await clickText(owner, '.inbox-item', 'Repair waiting for your approval');
+  } else {
+    await owner.goto(link);
+  }
   await owner.waitForSelector('.repair-note', { timeout: 60000 });
   const note = await owner.$eval('.repair-note', (el) => el.textContent);
   if (!note.includes('Replaced hinge')) throw new Error(`Approval page shows the wrong note: ${note}`);

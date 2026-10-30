@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ccc } from '@ckb-ccc/connector-react';
-import { Laptop, MagnifyingGlass, Plus, Wallet, SignOut, ShareNetwork, ArrowLeft, Wrench, ArrowsLeftRight, Trash, SealCheck, ShieldCheck, CopySimple, Check } from '@phosphor-icons/react';
+import { Laptop, MagnifyingGlass, Plus, Wallet, SignOut, ShareNetwork, ArrowLeft, Wrench, ArrowsLeftRight, Trash, SealCheck, ShieldCheck, CopySimple, Check, Tray } from '@phosphor-icons/react';
 import { closePassport, createPassport, transferPassport } from '../../src/public-actions.js';
 import { listPassports, loadPassport, passportLink } from '../../src/public-chain.js';
 import { approveRepair, decodeRequest, draftRepair, encodeRequest, reviewRepair } from '../../src/public-repair.js';
 import published from '../deployment.testnet.json';
+import { fetchDrafts, inboxEnabled, postDraft } from './inbox.js';
 import { ACTIONS, Confirm, Copy, Field, Notice, TxLink, ckb, short } from './ui.jsx';
 
 const env = import.meta.env;
@@ -59,15 +60,18 @@ export default function App() {
     return found;
   }), [client, run]);
 
+  const openRequest = useCallback((encoded) => run('Checking the repair request', async () => {
+    const decoded = await decodeRequest(encoded);
+    setRequest(decoded); setReview(null); setView('approve');
+    history.replaceState(null, '', `${location.pathname}#repair=${encoded}`);
+    const [summary, current] = await Promise.all([reviewRepair(client, deployment, decoded), loadPassport(client, deployment, decoded.passport)]);
+    setReview(summary); setPassport(current);
+  }), [client, run]);
+
   useEffect(() => {
     if (!deployed) return;
     if (location.hash.startsWith('#repair=')) {
-      void run('Checking the repair request', async () => {
-        const decoded = await decodeRequest(location.hash.slice('#repair='.length));
-        setRequest(decoded); setView('approve');
-        const [summary, current] = await Promise.all([reviewRepair(client, deployment, decoded), loadPassport(client, deployment, decoded.passport)]);
-        setReview(summary); setPassport(current);
-      });
+      void openRequest(location.hash.slice('#repair='.length));
     } else if (params().get('passport')) {
       void openPassport(params().get('passport'));
     }
@@ -99,7 +103,7 @@ export default function App() {
       {done && <Notice>{done.text} {done.tx && <TxLink hash={done.tx} />}</Notice>}
 
       {view === 'loading' && <Skeleton />}
-      {view === 'home' && signer && me.lockHash && deployed && <MyDevices client={client} lockHash={me.lockHash} onOpen={openPassport} />}
+      {view === 'home' && signer && me.lockHash && deployed && <MyDevices client={client} lockHash={me.lockHash} onOpen={openPassport} onReview={openRequest} />}
       {view === 'home' && <Home onOpen={openPassport} onCreate={() => { setError(''); setView('create'); }} disabled={!deployed || !!busy} />}
 
       {view === 'create' && <CreateView signer={signer} me={me} disabled={!deployed || !!busy} onBack={goHome}
@@ -110,11 +114,13 @@ export default function App() {
           if (result) { await openPassport(result.args, { quiet: true }); setDone({ text: 'Passport created.', tx: result.txHash }); }
         }} />}
 
-      {view === 'passport' && passport && <PassportView passport={passport} role={role} me={me} signer={signer} busy={!!busy} onBack={goHome}
+      {view === 'passport' && passport && <PassportView passport={passport} role={role} me={me} signer={signer} busy={!!busy} onBack={goHome} onReview={openRequest}
         onRepair={async (note) => {
           const draft = await run('Preparing the repair record', async () => {
-            const req = await draftRepair(signer, deployment, passport, note);
-            return `${location.origin}${location.pathname}#repair=${await encodeRequest(req)}`;
+            const encoded = await encodeRequest(await draftRepair(signer, deployment, passport, note));
+            let sent = false;
+            if (inboxEnabled) { try { await postDraft(encoded); sent = true; } catch { /* the link still works */ } }
+            return { link: `${location.origin}${location.pathname}#repair=${encoded}`, sent };
           });
           return draft;
         }}
@@ -156,19 +162,30 @@ function Skeleton() {
   </section>;
 }
 
-function MyDevices({ client, lockHash, onOpen }) {
+function MyDevices({ client, lockHash, onOpen, onReview }) {
   const [list, setList] = useState(null);
+  const [drafts, setDrafts] = useState({});
   const [failed, setFailed] = useState('');
   useEffect(() => {
     let active = true;
-    setList(null); setFailed('');
-    listPassports(client, deployment, lockHash).then((found) => active && setList(found)).catch((cause) => active && setFailed(cause?.message ?? String(cause)));
+    setList(null); setFailed(''); setDrafts({});
+    listPassports(client, deployment, lockHash).then(async (found) => {
+      if (!active) return;
+      setList(found);
+      const pending = await fetchDrafts(found.filter((p) => p.role === 'owner').map((p) => p.id)).catch(() => ({}));
+      if (active) setDrafts(pending);
+    }).catch((cause) => active && setFailed(cause?.message ?? String(cause)));
     return () => { active = false; };
   }, [client, lockHash]);
+  const waiting = Object.values(drafts).flat();
   const groups = [['owner', 'Devices you own'], ['workshop', 'Devices you service']];
   return <section className="my-devices">
     {failed && <Notice kind="error">Could not load your devices: {failed}</Notice>}
     {!list && !failed && <div className="card skeleton device-skeleton"><span /><span /></div>}
+    {waiting.map((d) => <button key={d.txHash} type="button" className="inbox-item" onClick={() => void onReview(d.request)}>
+      <Tray size={20} aria-hidden="true" />
+      <div><strong>Repair waiting for your approval</strong><span>{list?.find((p) => p.id === d.passport)?.events[0].detail.split(' / ')[0]}: “{d.note}”</span></div>
+    </button>)}
     {list && !list.length && <p className="muted">No passports for this wallet yet. Create one, or ask the owner to name this wallet as the workshop.</p>}
     {list && groups.map(([role, title]) => {
       const items = list.filter((p) => p.role === role);
@@ -180,7 +197,7 @@ function MyDevices({ client, lockHash, onOpen }) {
           const Icon = ACTIONS[latest.action]?.icon ?? Laptop;
           return <li key={p.id}><button type="button" className="device" onClick={() => void onOpen(p.id)}>
             <Laptop size={22} weight="duotone" aria-hidden="true" />
-            <div><strong>{p.events[0].detail}</strong><span><Icon size={14} aria-hidden="true" />{ACTIONS[latest.action]?.label} · {p.events.length} {p.events.length === 1 ? 'event' : 'events'}</span></div>
+            <div><strong>{p.events[0].detail}</strong><span><Icon size={14} aria-hidden="true" />{ACTIONS[latest.action]?.label} · {p.events.length} {p.events.length === 1 ? 'event' : 'events'}</span>{drafts[p.id] && <span className="pending">Repair waiting for approval</span>}</div>
           </button></li>;
         })}</ul>
       </div>;
@@ -230,8 +247,15 @@ function CreateView({ signer, disabled, onSubmit, onBack }) {
   </section>;
 }
 
-function PassportView({ passport, role, me, signer, busy, onBack, onRepair, onTransfer, onClose }) {
+function PassportView({ passport, role, me, signer, busy, onBack, onReview, onRepair, onTransfer, onClose }) {
   const [model, ownerLabel] = passport.events[0].detail.split(' / ');
+  const [pending, setPending] = useState([]);
+  useEffect(() => {
+    let active = true;
+    setPending([]);
+    if (role === 'owner') fetchDrafts([passport.id]).then((found) => active && setPending(found[passport.id] ?? [])).catch(() => {});
+    return () => { active = false; };
+  }, [passport.id, passport.sequence, role]);
   return <section className="passport">
     <button type="button" className="back" onClick={onBack}><ArrowLeft size={16} aria-hidden="true" />All passports</button>
     <div className="passport-grid">
@@ -270,6 +294,10 @@ function PassportView({ passport, role, me, signer, busy, onBack, onRepair, onTr
         {!signer && <p className="muted">Connect the owner’s or the workshop’s wallet to change this passport.</p>}
         {signer && role === 'viewer' && <p className="muted">The connected wallet <code>{short(me.address, 7, 4)}</code> is neither the owner nor the workshop for this passport.</p>}
         {role === 'workshop' && <RepairForm busy={busy} onRepair={onRepair} />}
+        {role === 'owner' && pending.map((d) => <button key={d.txHash} type="button" className="inbox-item" disabled={busy} onClick={() => void onReview(d.request)}>
+          <Tray size={20} aria-hidden="true" />
+          <div><strong>Repair waiting for your approval</strong><span>“{d.note}”</span></div>
+        </button>)}
         {role === 'owner' && <OwnerActions busy={busy} onTransfer={onTransfer} onClose={onClose} />}
       </article>
     </div>
@@ -279,20 +307,21 @@ function PassportView({ passport, role, me, signer, busy, onBack, onRepair, onTr
 function RepairForm({ busy, onRepair }) {
   const [note, setNote] = useState('');
   const [link, setLink] = useState('');
+  const [sent, setSent] = useState(false);
   const bytes = new TextEncoder().encode(note.trim()).length;
   if (link) {
     return <div className="stack">
-      <Notice>Draft signed by the workshop. Nothing changes until the owner approves it.</Notice>
-      <p className="muted">Send this link to the owner. It opens a review page where they co-sign with their wallet.</p>
+      <Notice>{sent ? 'Draft signed and sent. The owner will see it when they open their devices.' : 'Draft signed by the workshop. Nothing changes until the owner approves it.'}</Notice>
+      <p className="muted">{sent ? 'You can also send this link if the owner wants it now.' : 'Send this link to the owner. It opens a review page where they co-sign with their wallet.'}</p>
       <input className="link-field" value={link} readOnly aria-label="Repair approval link" onFocus={(event) => event.target.select()} />
       <div className="button-row">
         <Copy value={link} label="Copy link" />
         {navigator.share && <button type="button" className="btn btn-primary" onClick={() => navigator.share({ title: 'Approve laptop repair', text: 'Please review and approve this repair on the laptop passport.', url: link }).catch(() => {})}><ShareNetwork size={16} aria-hidden="true" />Share</button>}
       </div>
-      <button type="button" className="btn btn-quiet" onClick={() => { setLink(''); setNote(''); }}>Draft a different repair</button>
+      <button type="button" className="btn btn-quiet" onClick={() => { setLink(''); setSent(false); setNote(''); }}>Draft a different repair</button>
     </div>;
   }
-  return <form className="stack" onSubmit={async (event) => { event.preventDefault(); const result = await onRepair(note); if (result) setLink(result); }}>
+  return <form className="stack" onSubmit={async (event) => { event.preventDefault(); const result = await onRepair(note); if (result) { setLink(result.link); setSent(result.sent); } }}>
     <Field label="What was done" hint={`${bytes}/160 bytes. Public and permanent once the owner approves.`}>
       <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} placeholder="Replaced battery, cleaned fan, tested charging port" />
     </Field>

@@ -188,3 +188,9 @@ textarea { resize: vertical; }
 .device strong { overflow-wrap: anywhere; }
 .device span { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
 .device-skeleton { min-height: 80px; }
+
+.inbox-item { width: 100%; display: flex; gap: 12px; align-items: flex-start; text-align: left; padding: 14px 16px; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: var(--r-card); color: inherit; font: inherit; cursor: pointer; }
+.inbox-item > svg { flex: none; color: var(--accent); margin-top: 2px; }
+.inbox-item div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.inbox-item span { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+.device .pending { color: var(--accent); font-weight: 600; }
