@@ -80,6 +80,8 @@ textarea { resize: vertical; }
 .stack { display: flex; flex-direction: column; gap: 16px; }
 .button-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
+.link-field { font: 13px 'Geist Mono Variable', ui-monospace, monospace; color: var(--muted); text-overflow: ellipsis; }
+
 /* Notices */
 .notice { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r-control); background: var(--accent-soft); font-size: 14px; overflow-wrap: anywhere; }
 .notice svg { flex: none; margin-top: 2px; color: var(--accent); }

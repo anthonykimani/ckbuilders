@@ -4,3 +4,4 @@ rust-contract/target/
 dist-public/
 .deploy/
 .env.local
+dist-e2e/

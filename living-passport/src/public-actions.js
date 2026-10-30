@@ -26,7 +26,7 @@ async function pureCell(signer, minimum) {
   for await (const cell of signer.findCells({ scriptLenRange: [0, 1], outputDataLenRange: [0, 1] }, true, 'asc', 1)) {
     if (cell.cellOutput.capacity >= minimum) return cell;
   }
-  throw new Error('No plain testnet CKB Cell with enough capacity. Fund your wallet from the testnet faucet.');
+  throw new Error('This wallet has no plain testnet CKB. Fund it from the testnet faucet.');
 }
 
 async function submit(signer, tx) {
@@ -43,7 +43,9 @@ export async function createPassport(signer, deployment, { model, owner, worksho
   const workshop = await Address.fromString(workshopAddress.trim(), signer.client);
   const ownerLock = (await signer.getRecommendedAddressObj()).script;
   if (workshop.script.hash() === ownerLock.hash()) throw new Error('The workshop must be a different wallet from the owner.');
-  const funding = await pureCell(signer, CAPACITY + 100_000_000n);
+  // Any plain Cell can be the one-use funding input (input 0, whose OutPoint becomes the
+  // passport's identity); the rest of the 600 CKB is collected from other Cells.
+  const funding = await pureCell(signer, 1n);
   const random = crypto.getRandomValues(new Uint8Array(16));
   const itemId = hashCkb(bytesConcat(bytesFrom(funding.outPoint.toBytes()), random));
   const args = hexFrom(bytesConcat(bytesFrom(funding.outPoint.toBytes()), bytesFrom(workshop.script.hash())));
@@ -53,6 +55,11 @@ export async function createPassport(signer, deployment, { model, owner, worksho
   addInput(tx, funding);
   tx.addOutput({ lock: ownerLock, type, capacity: CAPACITY }, record.data);
   tx.addCellDeps(cellDep(deployment));
+  try {
+    await tx.completeInputsByCapacity(signer);
+  } catch {
+    throw new Error('This wallet needs at least 601 testnet CKB to create a passport. Fund it from the testnet faucet.');
+  }
   const txHash = await submit(signer, tx);
   return { args, txHash };
 }

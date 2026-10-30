@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ccc } from '@ckb-ccc/connector-react';
 import { Laptop, MagnifyingGlass, Plus, Wallet, SignOut, ShareNetwork, ArrowLeft, Wrench, ArrowsLeftRight, Trash, SealCheck, ShieldCheck } from '@phosphor-icons/react';
 import { closePassport, createPassport, transferPassport } from '../../src/public-actions.js';
@@ -19,7 +19,11 @@ const params = () => new URLSearchParams(location.search);
 
 export default function App() {
   const { client, open, disconnect } = ccc.useCcc();
-  const signer = ccc.useSigner();
+  const walletSigner = ccc.useSigner();
+  // Browser e2e builds only (`vite build --mode e2e`): the test runner injects a throwaway
+  // testnet key so the real UI can be driven without the JoyID popup. Never in production.
+  const testSigner = useMemo(() => (import.meta.env.MODE === 'e2e' && window.__LP_TEST_KEY ? new ccc.SignerCkbPrivateKey(client, window.__LP_TEST_KEY) : null), [client]);
+  const signer = testSigner ?? walletSigner;
   const [me, setMe] = useState({ address: '', lockHash: '' });
   const [view, setView] = useState(() => (location.hash.startsWith('#repair=') ? 'approve' : params().get('passport') && deployed ? 'loading' : 'home'));
   const [passport, setPassport] = useState(null);
@@ -244,6 +248,7 @@ function RepairForm({ busy, onRepair }) {
     return <div className="stack">
       <Notice>Draft signed by the workshop. Nothing changes until the owner approves it.</Notice>
       <p className="muted">Send this link to the owner. It opens a review page where they co-sign with their wallet.</p>
+      <input className="link-field" value={link} readOnly aria-label="Repair approval link" onFocus={(event) => event.target.select()} />
       <div className="button-row">
         <Copy value={link} label="Copy link" />
         {navigator.share && <button type="button" className="btn btn-primary" onClick={() => navigator.share({ title: 'Approve laptop repair', text: 'Please review and approve this repair on the laptop passport.', url: link }).catch(() => {})}><ShareNetwork size={16} aria-hidden="true" />Share</button>}

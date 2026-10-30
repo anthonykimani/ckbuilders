@@ -7,7 +7,9 @@
     "test:local": "node --test test/passport.test.js",
     "web": "node scripts/serve-web.mjs",
     "public:dev": "vite public-web --host 127.0.0.1 --port 4186",
-    "public:build": "vite build public-web --outDir dist-public"
+    "public:build": "vite build public-web --outDir dist-public",
+    "public:build:e2e": "vite build public-web --mode e2e --outDir dist-e2e",
+    "test:browser": "node scripts/browser-e2e.mjs"
   },
   "dependencies": {
     "@ckb-ccc/connector-react": "2.2.2",
@@ -20,6 +22,7 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "puppeteer-core": "24.10.0",
     "vite": "8.3.4"
   }
 }
