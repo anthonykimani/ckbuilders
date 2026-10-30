@@ -43,6 +43,9 @@ export default function App() {
     return () => { active = false; };
   }, [signer]);
 
+  // Notices sit above the form; on a phone the user is scrolled down to the button.
+  useEffect(() => { if (busy || error || done) window.scrollTo({ top: 0, behavior: 'smooth' }); }, [busy, error, done]);
+
   const run = useCallback(async (label, task) => {
     setBusy(label); setError(''); setDone(null);
     try { return await task(); } catch (cause) { setError(cause?.message ?? String(cause)); setView((current) => (current === 'loading' ? 'home' : current)); return undefined; } finally { setBusy(''); }
