@@ -13,6 +13,7 @@ Learning reports and projects by Anthony Kimani.
 - [Week 7](weekly-reports/week-seven/week-seven.md) — escrow group-input check and the read-only CKB Cell Inspector
 - [Week 8](weekly-reports/week-eight/week-eight.md) — Living Passport: signed local lifecycle and public-testnet preview
 - [Week 9](weekly-reports/week-nine/week-nine.md) — Living Passport on public testnet: two-signer repair, close, new frontend
+- [Week 10](weekly-reports/week-ten/week-ten.md) — Real phones, repair inbox, and the first repair shop visit (Dflex Technologies)
 
 ## Featured projects
 
