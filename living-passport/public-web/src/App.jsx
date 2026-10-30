@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ccc } from '@ckb-ccc/connector-react';
-import { Laptop, MagnifyingGlass, Plus, Wallet, SignOut, ShareNetwork, ArrowLeft, Wrench, ArrowsLeftRight, Trash, SealCheck, ShieldCheck } from '@phosphor-icons/react';
+import { Laptop, MagnifyingGlass, Plus, Wallet, SignOut, ShareNetwork, ArrowLeft, Wrench, ArrowsLeftRight, Trash, SealCheck, ShieldCheck, CopySimple, Check } from '@phosphor-icons/react';
 import { closePassport, createPassport, transferPassport } from '../../src/public-actions.js';
 import { loadPassport, passportLink } from '../../src/public-chain.js';
 import { approveRepair, decodeRequest, draftRepair, encodeRequest, reviewRepair } from '../../src/public-repair.js';
@@ -87,7 +87,7 @@ export default function App() {
       <div className="topbar-right">
         <span className="net-chip">Testnet</span>
         {signer
-          ? <button type="button" className="btn btn-quiet wallet-btn" onClick={disconnect} title="Disconnect wallet"><code>{short(me.address, 7, 4)}</code><SignOut size={16} aria-hidden="true" /></button>
+          ? <WalletChip address={me.address} onDisconnect={disconnect} />
           : <button type="button" className="btn btn-primary wallet-btn" onClick={open}><Wallet size={16} aria-hidden="true" />Connect</button>}
       </div>
     </header>
@@ -301,4 +301,19 @@ function ApproveView({ review, passport, me, signer, busy, onConnect, onApprove 
     {signer && isOwner && <button type="button" className="btn btn-primary" disabled={busy} onClick={onApprove}><SealCheck size={16} aria-hidden="true" />Approve and sign</button>}
     <p className="field-hint">If the note is wrong, do not approve. Ask the workshop for a new link.</p>
   </section>;
+}
+
+function WalletChip({ address, onDisconnect }) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef();
+  useEffect(() => () => clearTimeout(timer.current), []);
+  async function copy() {
+    try { await navigator.clipboard.writeText(address); setCopied(true); timer.current = setTimeout(() => setCopied(false), 1600); } catch { /* clipboard blocked */ }
+  }
+  return <div className="wallet-chip">
+    <button type="button" className="btn btn-quiet wallet-btn" onClick={copy} title="Copy wallet address">
+      <code>{copied ? 'Copied' : short(address, 7, 4)}</code>{copied ? <Check size={16} aria-hidden="true" /> : <CopySimple size={16} aria-hidden="true" />}
+    </button>
+    <button type="button" className="btn btn-quiet wallet-btn icon-btn" onClick={onDisconnect} title="Disconnect wallet" aria-label="Disconnect wallet"><SignOut size={16} aria-hidden="true" /></button>
+  </div>;
 }

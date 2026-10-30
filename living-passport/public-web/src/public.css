@@ -69,6 +69,8 @@ button, input, textarea { font: inherit; color: inherit; }
 .btn-danger { background: var(--danger); color: #fff8f6; }
 .btn-danger-quiet { background: none; border-color: transparent; color: var(--danger); align-self: flex-start; padding: 0 4px; }
 .wallet-btn { min-height: 38px; padding: 0 12px; font-size: 14px; }
+.wallet-chip { display: flex; gap: 6px; }
+.wallet-btn.icon-btn { padding: 0 10px; }
 .back { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; color: var(--muted); padding: 0; cursor: pointer; font-size: 14px; margin-bottom: 12px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field-label { font-size: 14px; font-weight: 600; }
