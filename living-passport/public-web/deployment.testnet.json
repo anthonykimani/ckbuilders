@@ -5,5 +5,6 @@
   "txHash": "0x0800743595486b5cd4f21d2fac3f26cb59bd0bfdc1ab1310017302185e672401",
   "index": 0,
   "binaryBytes": 24024,
-  "deployedAt": "2026-10-20T07:58:46.829Z"
+  "deployedAt": "2026-10-20T07:58:46.829Z",
+  "inboxUrl": "https://passport-api.mandaristudios.com"
 }
