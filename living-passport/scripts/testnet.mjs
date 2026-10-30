@@ -3,6 +3,7 @@
 //   node scripts/testnet.mjs keys     create/show the disposable testnet keys and balances
 //   node scripts/testnet.mjs deploy   publish the Rust Type Script as a code Cell
 //   node scripts/testnet.mjs e2e      create → two-signer repair → transfer → close
+//   node scripts/testnet.mjs seed [ckt1…]  register sample devices with repairs (some given to ckt1…)
 //
 // Keys live in .deploy/testnet-keys.json (gitignored, mode 600). They are throwaway
 // testnet keys: never fund them with anything but faucet CKB.
@@ -131,9 +132,63 @@ async function demo(signers) {
   console.log(`pending  #repair=${pending}`);
 }
 
+// Demo devices with made-up owners, for showing the app. Not pilot data.
+const SAMPLES = [
+  ['Samsung Galaxy A54', 'Wanjiru', ['Replaced cracked screen with OEM AMOLED panel', 'New battery, original Samsung part'], 'buyer'],
+  ['HP EliteBook 840 G5', 'Otieno', ['Replaced hinge and bezel', 'Upgraded RAM 8 GB to 16 GB', 'Cleaned fan, new thermal paste'], 'you'],
+  ['Tecno Camon 20', 'Achieng', ['Charging port replaced'], null],
+  ['Lenovo ThinkPad T470', 'Kamau', ['Keyboard replaced', 'New 256 GB SSD, Windows reinstalled'], 'buyer'],
+  ['iPhone 11', 'Njeri', ['Battery replaced, health now 100%', 'Back glass replaced', 'Face ID checked, working'], 'you'],
+  ['Infinix Hot 30', 'Mwangi', ['Screen protector and earpiece cleaned'], null],
+  ['Dell Latitude 7490', 'Chebet', ['Motherboard DC jack resoldered', 'Battery replaced'], 'buyer'],
+  ['Samsung Galaxy S21', 'Omondi', ['Water damage cleaned, board dried', 'Replaced loudspeaker'], null],
+  ['MacBook Air 2017', 'Wambui', ['Replaced swollen battery', 'New charger port flex', 'macOS reinstalled'], 'you'],
+  ['Oppo A78', 'Kiprop', ['Back camera module replaced'], null],
+  ['HP ProBook 450 G7', 'Akinyi', ['Screen replaced, 15.6 inch FHD', 'Touchpad cable reseated'], 'buyer'],
+  ['Xiaomi Redmi Note 12', 'Mutua', ['Screen replaced', 'Battery replaced', 'Software reflashed to stock'], null],
+];
+
+// Registers SAMPLES with co-signed repairs and resales. Devices marked 'you' end up owned by
+// the address given on the command line, and a repair is left pending in the inbox for them.
+async function seed(signers) {
+  const deployment = JSON.parse(readFileSync(deploymentFile, 'utf8'));
+  const you = process.argv[3];
+  const devices = SAMPLES.filter(([, , , to]) => to !== 'you' || you);
+  const need = BigInt(devices.length) * 610_00000000n;
+  if (await balance(signers.owner) < need) console.log(`funding owner: ${await send(signers.deployer, [[(await signers.owner.getRecommendedAddressObj()).script, need]])}`);
+  if (await balance(signers.workshop) < 300_00000000n) console.log(`funding workshop: ${await send(signers.deployer, [[(await signers.workshop.getRecommendedAddressObj()).script, 500_00000000n]])}`);
+  const workshopAddress = await signers.workshop.getRecommendedAddress();
+  const buyerAddress = await signers.buyer.getRecommendedAddress();
+  const pending = [];
+  for (const [model, owner, repairs, to] of devices) {
+    const { args, txHash } = await createPassport(signers.owner, deployment, { model, owner, workshopAddress });
+    console.log(`${model}: created ${txHash}`);
+    let passport = await loadPassport(client, deployment, args);
+    for (const note of repairs) {
+      await approveRepair(signers.owner, deployment, await draftRepair(signers.workshop, deployment, passport, note));
+      passport = await loadPassport(client, deployment, args);
+      console.log(`  repair: ${note}`);
+    }
+    if (to) {
+      const recipient = to === 'you' ? you : buyerAddress;
+      await transferPassport(signers.owner, deployment, passport, { recipientAddress: recipient, note: to === 'you' ? 'Handed to new owner after service' : 'Sold second hand' });
+      console.log(`  transferred to ${to}`);
+      if (to === 'you' && pending.length < 2) pending.push(await loadPassport(client, deployment, args));
+    }
+    console.log(`  ?passport=${args}`);
+  }
+  if (deployment.inboxUrl) {
+    for (const passport of pending) {
+      const request = await encodeRequest(await draftRepair(signers.workshop, deployment, passport, 'Free check-up: battery and ports tested'));
+      const res = await fetch(`${deployment.inboxUrl}/drafts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ request }) });
+      console.log(`pending repair for ${passport.events[0].detail}: inbox ${res.status}`);
+    }
+  }
+}
+
 const command = process.argv[2];
-const actions = { keys, deploy, e2e, demo };
-if (!actions[command]) { console.error('Usage: node scripts/testnet.mjs keys|deploy|e2e|demo'); process.exit(1); }
+const actions = { keys, deploy, e2e, demo, seed };
+if (!actions[command]) { console.error('Usage: node scripts/testnet.mjs keys|deploy|e2e|demo|seed [ckt1… to receive some samples]'); process.exit(1); }
 try {
   await assertTestnet();
   await actions[command](loadKeys());
