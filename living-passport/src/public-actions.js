@@ -40,7 +40,9 @@ async function submit(signer, tx) {
 export async function createPassport(signer, deployment, { model, owner, workshopAddress }) {
   testnet(signer);
   const description = `${text(model, 80)} / ${text(owner, 60)}`;
-  const workshop = await Address.fromString(workshopAddress.trim(), signer.client);
+  const workshopText = workshopAddress.trim();
+  if (!workshopText.startsWith('ckt1')) throw new Error('The workshop address must be a testnet wallet address starting with ckt1. A passport ID will not work here.');
+  const workshop = await Address.fromString(workshopText, signer.client);
   const ownerLock = (await signer.getRecommendedAddressObj()).script;
   if (workshop.script.hash() === ownerLock.hash()) throw new Error('The workshop must be a different wallet from the owner.');
   // Any plain Cell can be the one-use funding input (input 0, whose OutPoint becomes the
