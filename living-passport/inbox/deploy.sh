@@ -19,7 +19,7 @@ npm install --omit=dev --no-audit --no-fund --silent
 export PORT=4310 INBOX_DATA=/var/lib/living-passport/inbox.json
 pm2 restart living-passport-inbox --update-env >/dev/null 2>&1 || pm2 start inbox/server.mjs --name living-passport-inbox
 pm2 save >/dev/null
-sleep 2; curl -fsS http://127.0.0.1:4310/health; echo
+for i in 1 2 3 4 5 6 7 8 9 10; do curl -fsS http://127.0.0.1:4310/health && break; sleep 1; done; echo
 if [ -n "$domain" ]; then
   cat > /etc/nginx/sites-available/living-passport-inbox <<NGINX
 server {

@@ -73,8 +73,8 @@ try {
   await owner.goto(base);
   await owner.waitForSelector('.wallet-btn code');
   await snap(owner, 'owner-home');
-  await clickText(owner, 'button', 'Create a passport');
-  await type(owner, 'Laptop model', 'HP EliteBook 840 G5 (browser test)');
+  await clickText(owner, 'button', 'Create my own passport');
+  await type(owner, 'Device model', 'HP EliteBook 840 G5 (browser test)');
   await type(owner, 'Owner label', 'Test owner');
   await type(owner, 'Workshop testnet address', workshopCkt);
   await snap(owner, 'owner-create-form');
@@ -124,6 +124,59 @@ try {
   await clickText(owner, '.sheet button', 'Close passport');
   await waitNotice(owner, 'Passport closed');
   await snap(owner, 'owner-closed');
+  console.log(`[${elapsed()}] owner flow PASS`);
+
+  if (inbox) {
+    // Shop-first: the shop registers a walk-in device, records a repair alone, prints the QR
+    // card, and later hands the passport to the customer who asks for it.
+    console.log(`[${elapsed()}] shop phone: register a walk-in device`);
+    await workshop.goto(base);
+    await clickText(workshop, 'button', 'Register a device (shop)');
+    await type(workshop, 'Device model', 'Tecno Spark 10 (browser test)');
+    await type(workshop, 'Customer label', 'Ticket 0001');
+    await type(workshop, 'Condition on arrival', 'Not charging');
+    await clickText(workshop, 'button', 'Review device');
+    await workshop.waitForSelector('.sheet');
+    await clickText(workshop, '.sheet button', 'Continue to wallet');
+    await waitNotice(workshop, 'Device registered.');
+    const shopUrl = workshop.url();
+    await snap(workshop, 'shop-registered');
+    await type(workshop, 'What was done', 'Replaced charging port (browser test)');
+    await clickText(workshop, 'button', 'Record repair');
+    await waitNotice(workshop, 'Repair recorded.');
+    await snap(workshop, 'shop-repair-recorded');
+    await clickText(workshop, 'button', 'QR card');
+    await workshop.waitForSelector('.qr svg');
+    await snap(workshop, 'shop-qr-card');
+
+    console.log(`[${elapsed()}] customer phone: scan the card and request ownership`);
+    await owner.goto('about:blank');
+    await owner.goto(shopUrl);
+    await clickText(owner, 'button', 'Request ownership');
+    await waitNotice(owner, 'Request sent.');
+    await snap(owner, 'customer-requested');
+
+    console.log(`[${elapsed()}] shop phone: hand over to the customer`);
+    await workshop.goto('about:blank');
+    await workshop.goto(base);
+    await clickText(workshop, '.inbox-item', 'A customer wants to take ownership');
+    await clickText(workshop, 'button', 'Hand over to this customer');
+    await workshop.waitForSelector('.sheet');
+    await clickText(workshop, '.sheet button', 'Continue to wallet');
+    await waitNotice(workshop, 'Passport handed to the customer.');
+    await snap(workshop, 'shop-handed-over');
+    const shopEvents = await workshop.$$eval('.timeline .event', (els) => els.map((e) => e.querySelector('p').textContent));
+    console.log(`[${elapsed()}]   history: ${shopEvents.join(' <- ')}`);
+    if (shopEvents.length !== 4) throw new Error('Shop history should have intake, condition, repair and hand-over.');
+
+    console.log(`[${elapsed()}] customer phone: owns it now, closes it`);
+    await owner.goto('about:blank');
+    await owner.goto(shopUrl);
+    await clickText(owner, 'button', 'Close passport');
+    await owner.waitForSelector('.sheet');
+    await clickText(owner, '.sheet button', 'Close passport');
+    await waitNotice(owner, 'Passport closed');
+  }
   console.log(`[${elapsed()}] PASS`);
 } catch (error) {
   console.error(`FAILED: ${error.message}`);

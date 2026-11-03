@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ccc } from '@ckb-ccc/connector-react';
-import { Laptop, MagnifyingGlass, Plus, Wallet, SignOut, ShareNetwork, ArrowLeft, Wrench, ArrowsLeftRight, Trash, SealCheck, ShieldCheck, CopySimple, Check, Tray } from '@phosphor-icons/react';
-import { closePassport, createPassport, transferPassport } from '../../src/public-actions.js';
-import { listPassports, loadPassport, passportLink } from '../../src/public-chain.js';
+import { Laptop, MagnifyingGlass, Plus, Wallet, SignOut, ShareNetwork, ArrowLeft, Wrench, ArrowsLeftRight, Trash, SealCheck, ShieldCheck, CopySimple, Check, Tray, Storefront, QrCode, Printer, UserCirclePlus, Package } from '@phosphor-icons/react';
+import QRCode from 'qrcode';
+import { closePassport, createPassport, shopRepair, transferPassport } from '../../src/public-actions.js';
+import { COLLECTED, listPassports, loadPassport, passportLink, shopStatus } from '../../src/public-chain.js';
 import { approveRepair, decodeRequest, draftRepair, encodeRequest, reviewRepair } from '../../src/public-repair.js';
 import published from '../deployment.testnet.json';
-import { fetchDrafts, inboxEnabled, postDraft } from './inbox.js';
+import { fetchClaims, fetchDrafts, inboxEnabled, postClaim, postDraft } from './inbox.js';
 import { ACTIONS, Confirm, Copy, Field, Notice, TxLink, ckb, short } from './ui.jsx';
 
 const env = import.meta.env;
@@ -73,7 +74,8 @@ export default function App() {
     if (location.hash.startsWith('#repair=')) {
       void openRequest(location.hash.slice('#repair='.length));
     } else if (params().get('passport')) {
-      void openPassport(params().get('passport'));
+      const card = params().get('card');
+      void openPassport(params().get('passport')).then((found) => { if (found && card) setView('card'); });
     }
     // Initial route only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -83,7 +85,10 @@ export default function App() {
   const ask = (details) => new Promise((resolve) => setConfirm({ ...details, resolve }));
   const answer = (value) => { confirm?.resolve(value); setConfirm(null); };
 
-  const role = passport && me.lockHash ? (me.lockHash === passport.ownerLockHash ? 'owner' : me.lockHash === passport.workshopLockHash ? 'workshop' : 'viewer') : null;
+  const isOwner = passport && me.lockHash === passport.ownerLockHash;
+  const isWorkshop = passport && me.lockHash === passport.workshopLockHash;
+  const role = passport && me.lockHash ? (isOwner && isWorkshop ? 'shop' : isOwner ? 'owner' : isWorkshop ? 'workshop' : 'viewer') : null;
+  const [createMode, setCreateMode] = useState('shop');
 
   return <div className="shell">
     <header className="topbar">
@@ -104,17 +109,45 @@ export default function App() {
 
       {view === 'loading' && <Skeleton />}
       {view === 'home' && signer && me.lockHash && deployed && <MyDevices client={client} lockHash={me.lockHash} onOpen={openPassport} onReview={openRequest} />}
-      {view === 'home' && <Home onOpen={openPassport} onCreate={() => { setError(''); setView('create'); }} disabled={!deployed || !!busy} />}
+      {view === 'home' && <Home onOpen={openPassport} onCreate={(mode) => { setError(''); setCreateMode(mode); setView('create'); }} disabled={!deployed || !!busy} />}
 
-      {view === 'create' && <CreateView signer={signer} me={me} disabled={!deployed || !!busy} onBack={goHome}
+      {view === 'create' && <CreateView mode={createMode} onMode={setCreateMode} signer={signer} me={me} disabled={!deployed || !!busy} onBack={goHome}
         onSubmit={async (form) => {
-          const ok = await ask({ title: 'Create this passport?', confirm: 'Continue to wallet', rows: [['Laptop', form.model], ['Owner label', form.owner], ['Workshop wallet', <code key="w">{short(form.workshop, 12, 8)}</code>]], warning: '600 testnet CKB stays inside the passport until its owner closes it. Everything you type is public and permanent.' });
+          const shop = createMode === 'shop';
+          const rows = shop
+            ? [['Device', form.model], ['Customer', form.owner], ['Condition on arrival', form.condition.trim() || 'Not recorded']]
+            : [['Device', form.model], ['Owner label', form.owner], ['Workshop wallet', <code key="w">{short(form.workshop, 12, 8)}</code>]];
+          const ok = await ask({ title: shop ? 'Register this device?' : 'Create this passport?', confirm: 'Continue to wallet', rows, warning: shop ? 'Your shop holds the passport and 600 testnet CKB until you hand it to the customer or close it. Everything you type is public and permanent.' : '600 testnet CKB stays inside the passport until its owner closes it. Everything you type is public and permanent.' });
           if (!ok) return;
-          const result = await run('Creating the passport', () => createPassport(signer, deployment, { model: form.model, owner: form.owner, workshopAddress: form.workshop }));
-          if (result) { await openPassport(result.args, { quiet: true }); setDone({ text: 'Passport created.', tx: result.txHash }); }
+          const result = await run(shop ? 'Registering the device' : 'Creating the passport', async () => {
+            const created = await createPassport(signer, deployment, { model: form.model, owner: form.owner, workshopAddress: form.workshop, shop });
+            if (shop && form.condition.trim()) {
+              const fresh = await loadPassport(client, deployment, created.args);
+              created.txHash = await shopRepair(signer, deployment, fresh, `Received: ${form.condition.trim()}`);
+            }
+            return created;
+          });
+          if (result) { await openPassport(result.args, { quiet: true }); setDone({ text: shop ? 'Device registered. Print its QR card for the customer.' : 'Passport created.', tx: result.txHash }); }
         }} />}
 
-      {view === 'passport' && passport && <PassportView passport={passport} role={role} me={me} signer={signer} busy={!!busy} onBack={goHome} onReview={openRequest}
+      {view === 'card' && passport && <CardView passport={passport} onBack={() => setView('passport')} />}
+
+      {view === 'passport' && passport && <PassportView passport={passport} role={role} me={me} signer={signer} busy={!!busy} onBack={goHome} onReview={openRequest} onCard={() => setView('card')} onConnect={open}
+        onShopRepair={async (note) => {
+          const tx = await run('Recording the repair', () => shopRepair(signer, deployment, passport, note));
+          if (tx) { await openPassport(passport.id, { quiet: true }); setDone({ text: note === COLLECTED ? 'Marked as collected.' : 'Repair recorded.', tx }); }
+          return !!tx;
+        }}
+        onClaim={async () => {
+          const ok = await run('Sending your request to the shop', () => postClaim(passport.id, me.address).then(() => true));
+          if (ok) setDone({ text: 'Request sent. The shop will hand the passport to this wallet when you are with them.' });
+        }}
+        onApproveClaim={async (claim) => {
+          const ok = await ask({ title: 'Hand this passport to the customer?', confirm: 'Continue to wallet', rows: [['Customer wallet', <code key="c">{short(claim.address, 12, 8)}</code>]], warning: 'Only do this with the customer in front of you, after checking the address on their phone matches. After this, every repair needs their approval too.' });
+          if (!ok) return;
+          const tx = await run('Handing over the passport', () => transferPassport(signer, deployment, passport, { recipientAddress: claim.address, note: 'Claimed by the owner at the shop' }));
+          if (tx) { await openPassport(passport.id, { quiet: true }); setDone({ text: 'Passport handed to the customer.', tx }); }
+        }}
         onRepair={async (note) => {
           const draft = await run('Preparing the repair record', async () => {
             const encoded = await encodeRequest(await draftRepair(signer, deployment, passport, note));
@@ -165,20 +198,32 @@ function Skeleton() {
 function MyDevices({ client, lockHash, onOpen, onReview }) {
   const [list, setList] = useState(null);
   const [drafts, setDrafts] = useState({});
+  const [claims, setClaims] = useState({});
+  const [filter, setFilter] = useState('in-shop');
+  const [query, setQuery] = useState('');
   const [failed, setFailed] = useState('');
   useEffect(() => {
     let active = true;
-    setList(null); setFailed(''); setDrafts({});
+    setList(null); setFailed(''); setDrafts({}); setClaims({});
     listPassports(client, deployment, lockHash).then(async (found) => {
       if (!active) return;
       setList(found);
-      const pending = await fetchDrafts(found.filter((p) => p.role === 'owner').map((p) => p.id)).catch(() => ({}));
-      if (active) setDrafts(pending);
+      const [pending, requests] = await Promise.all([
+        fetchDrafts(found.filter((p) => p.role === 'owner').map((p) => p.id)).catch(() => ({})),
+        fetchClaims(found.filter((p) => p.role === 'shop').map((p) => p.id)).catch(() => ({})),
+      ]);
+      if (active) { setDrafts(pending); setClaims(requests); }
     }).catch((cause) => active && setFailed(cause?.message ?? String(cause)));
     return () => { active = false; };
   }, [client, lockHash]);
   const waiting = Object.values(drafts).flat();
-  const groups = [['owner', 'Devices you own'], ['workshop', 'Devices you service']];
+  const requests = Object.values(claims).flat();
+  const ledger = (list ?? []).filter((p) => p.role === 'shop' || p.role === 'workshop');
+  const counts = { 'in-shop': 0, collected: 0, claimed: 0 };
+  for (const p of ledger) counts[shopStatus(p)] += 1;
+  const needle = query.trim().toLowerCase();
+  const shown = ledger.filter((p) => shopStatus(p) === filter && (!needle || p.events.some((e) => e.detail.toLowerCase().includes(needle))));
+  const groups = [['owner', 'Devices you own']];
   return <section className="my-devices">
     {failed && <Notice kind="error">Could not load your devices: {failed}</Notice>}
     {!list && !failed && <div className="card skeleton device-skeleton"><span /><span /></div>}
@@ -186,23 +231,40 @@ function MyDevices({ client, lockHash, onOpen, onReview }) {
       <Tray size={20} aria-hidden="true" />
       <div><strong>Repair waiting for your approval</strong><span>{list?.find((p) => p.id === d.passport)?.events[0].detail.split(' / ')[0]}: “{d.note}”</span></div>
     </button>)}
+    {requests.map((c) => <button key={`${c.passport}${c.lockHash}`} type="button" className="inbox-item" onClick={() => void onOpen(c.passport)}>
+      <UserCirclePlus size={20} aria-hidden="true" />
+      <div><strong>A customer wants to take ownership</strong><span>{list?.find((p) => p.id === c.passport)?.events[0].detail.split(' / ')[0]} · from <code>{short(c.address, 7, 4)}</code></span></div>
+    </button>)}
+    {ledger.length > 0 && <div className="device-group">
+      <h2><Storefront size={18} aria-hidden="true" />Shop ledger <span className="count">{ledger.length}</span></h2>
+      <div className="ledger-tools">
+        <div className="chips" role="tablist">
+          {[['in-shop', 'In the shop'], ['collected', 'Collected'], ['claimed', 'With owner']].map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={filter === key} className={`chip${filter === key ? ' chip-on' : ''}`} onClick={() => setFilter(key)}>{label} <span>{counts[key]}</span></button>)}
+        </div>
+        <input className="ledger-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search model, customer or repair" aria-label="Search the ledger" />
+      </div>
+      {!shown.length && <p className="muted">Nothing here.</p>}
+      <ul className="device-list">{shown.map((p) => <DeviceCard key={p.id} passport={p} onOpen={onOpen} badge={claims[p.id] && 'Ownership request'} />)}</ul>
+    </div>}
     {list && !list.length && <p className="muted">No passports for this wallet yet. Create one, or ask the owner to name this wallet as the workshop.</p>}
     {list && groups.map(([role, title]) => {
       const items = list.filter((p) => p.role === role);
       if (!items.length) return null;
       return <div key={role} className="device-group">
         <h2>{title} <span className="count">{items.length}</span></h2>
-        <ul className="device-list">{items.map((p) => {
-          const latest = p.events.at(-1);
-          const Icon = ACTIONS[latest.action]?.icon ?? Laptop;
-          return <li key={p.id}><button type="button" className="device" onClick={() => void onOpen(p.id)}>
-            <Laptop size={22} weight="duotone" aria-hidden="true" />
-            <div><strong>{p.events[0].detail}</strong><span><Icon size={14} aria-hidden="true" />{ACTIONS[latest.action]?.label} · {p.events.length} {p.events.length === 1 ? 'event' : 'events'}</span>{drafts[p.id] && <span className="pending">Repair waiting for approval</span>}</div>
-          </button></li>;
-        })}</ul>
+        <ul className="device-list">{items.map((p) => <DeviceCard key={p.id} passport={p} onOpen={onOpen} badge={drafts[p.id] && 'Repair waiting for approval'} />)}</ul>
       </div>;
     })}
   </section>;
+}
+
+function DeviceCard({ passport: p, onOpen, badge }) {
+  const latest = p.events.at(-1);
+  const Icon = ACTIONS[latest.action]?.icon ?? Laptop;
+  return <li><button type="button" className="device" onClick={() => void onOpen(p.id)}>
+    <Laptop size={22} weight="duotone" aria-hidden="true" />
+    <div><strong>{p.events[0].detail}</strong><span><Icon size={14} aria-hidden="true" />{latest.action === 1 ? latest.detail : ACTIONS[latest.action]?.label} · {p.events.length} {p.events.length === 1 ? 'event' : 'events'}</span>{badge && <span className="pending">{badge}</span>}</div>
+  </button></li>;
 }
 
 function Home({ onOpen, onCreate, disabled }) {
@@ -219,43 +281,58 @@ function Home({ onOpen, onCreate, disabled }) {
           </div>
         </Field>
       </form>
-      <button type="button" className="btn btn-quiet" onClick={onCreate} disabled={disabled}><Plus size={16} aria-hidden="true" />Create a passport</button>
+      <div className="button-row">
+        <button type="button" className="btn btn-primary" onClick={() => onCreate('shop')} disabled={disabled}><Storefront size={16} aria-hidden="true" />Register a device (shop)</button>
+        <button type="button" className="btn btn-quiet" onClick={() => onCreate('owner')} disabled={disabled}><Plus size={16} aria-hidden="true" />Create my own passport</button>
+      </div>
     </div>
     <ol className="how">
-      <li><Wrench size={20} aria-hidden="true" /><div><strong>The workshop drafts a repair</strong><span>and sends the owner a link.</span></div></li>
-      <li><SealCheck size={20} aria-hidden="true" /><div><strong>The owner checks and co-signs</strong><span>so neither side can write the record alone.</span></div></li>
-      <li><ArrowsLeftRight size={20} aria-hidden="true" /><div><strong>The passport moves at resale</strong><span>and the buyer sees every signed event.</span></div></li>
+      <li><Storefront size={20} aria-hidden="true" /><div><strong>The shop registers the device</strong><span>at intake. The customer needs no wallet.</span></div></li>
+      <li><Wrench size={20} aria-hidden="true" /><div><strong>Repairs go on its record</strong><span>and the customer gets a QR card to check them.</span></div></li>
+      <li><SealCheck size={20} aria-hidden="true" /><div><strong>The owner can claim it later</strong><span>after which every repair needs their approval too.</span></div></li>
+      <li><ArrowsLeftRight size={20} aria-hidden="true" /><div><strong>A buyer scans the card</strong><span>and sees every signed event before paying.</span></div></li>
     </ol>
   </section>;
 }
 
-function CreateView({ signer, disabled, onSubmit, onBack }) {
-  const [form, setForm] = useState({ model: '', owner: '', workshop: '' });
+function CreateView({ mode, onMode, signer, disabled, onSubmit, onBack }) {
+  const [form, setForm] = useState({ model: '', owner: '', workshop: '', condition: '' });
   const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
-  const ready = form.model.trim() && form.owner.trim() && form.workshop.trim();
+  const shop = mode === 'shop';
+  const ready = form.model.trim() && form.owner.trim() && (shop || form.workshop.trim());
   return <section className="panel narrow">
     <button type="button" className="back" onClick={onBack}><ArrowLeft size={16} aria-hidden="true" />Back</button>
-    <h1>Create a passport</h1>
-    <p className="lede">Your connected wallet becomes the first owner. You can hand it to the customer afterwards.</p>
+    <div className="chips" role="tablist">
+      <button type="button" role="tab" aria-selected={shop} className={`chip${shop ? ' chip-on' : ''}`} onClick={() => onMode('shop')}>I’m the shop</button>
+      <button type="button" role="tab" aria-selected={!shop} className={`chip${!shop ? ' chip-on' : ''}`} onClick={() => onMode('owner')}>I’m the owner</button>
+    </div>
+    <h1>{shop ? 'Register a device' : 'Create a passport'}</h1>
+    <p className="lede">{shop ? 'Your shop wallet holds the passport, so the customer needs no wallet or smartphone. You can hand it to them later.' : 'Your connected wallet becomes the owner. The workshop you name drafts repairs, and you approve each one.'}</p>
     <form className="stack" onSubmit={(event) => { event.preventDefault(); if (ready) void onSubmit(form); }}>
-      <Field label="Laptop model" hint="Avoid serial numbers. This text is public."><input value={form.model} onChange={set('model')} maxLength={80} placeholder="ThinkPad T480" /></Field>
-      <Field label="Owner label" hint="A first name or shop label, not a phone number."><input value={form.owner} onChange={set('owner')} maxLength={60} placeholder="Wanjiru" /></Field>
-      <Field label="Workshop testnet address" hint="Only this wallet can draft repairs for this passport."><input value={form.workshop} onChange={set('workshop')} placeholder="ckt1…" spellCheck="false" autoComplete="off" /></Field>
+      <Field label="Device model" hint="Avoid serial numbers and IMEIs. This text is public."><input value={form.model} onChange={set('model')} maxLength={80} placeholder={shop ? 'Samsung Galaxy A54' : 'ThinkPad T480'} /></Field>
+      <Field label={shop ? 'Customer label' : 'Owner label'} hint="A first name or ticket number, not a phone number."><input value={form.owner} onChange={set('owner')} maxLength={60} placeholder={shop ? 'Ticket 0412' : 'Wanjiru'} /></Field>
+      {shop
+        ? <Field label="Condition on arrival (optional)" hint="Recorded as the first event, e.g. what the customer reported."><input value={form.condition} onChange={set('condition')} maxLength={140} placeholder="Cracked screen, not charging" /></Field>
+        : <Field label="Workshop testnet address" hint="Only this wallet can draft repairs for this passport."><input value={form.workshop} onChange={set('workshop')} placeholder="ckt1…" spellCheck="false" autoComplete="off" /></Field>}
       {!signer && <p className="field-hint">Connect a testnet wallet holding at least 601 CKB to continue.</p>}
-      <button className="btn btn-primary" disabled={disabled || !signer || !ready}>Review passport</button>
+      <button className="btn btn-primary" disabled={disabled || !signer || !ready}>{shop ? 'Review device' : 'Review passport'}</button>
     </form>
   </section>;
 }
 
-function PassportView({ passport, role, me, signer, busy, onBack, onReview, onRepair, onTransfer, onClose }) {
+function PassportView({ passport, role, me, signer, busy, onBack, onReview, onRepair, onTransfer, onClose, onCard, onConnect, onShopRepair, onClaim, onApproveClaim }) {
   const [model, ownerLabel] = passport.events[0].detail.split(' / ');
   const [pending, setPending] = useState([]);
+  const [claims, setClaims] = useState([]);
+  const shopHeld = passport.ownerLockHash === passport.workshopLockHash;
   useEffect(() => {
     let active = true;
-    setPending([]);
+    setPending([]); setClaims([]);
     if (role === 'owner') fetchDrafts([passport.id]).then((found) => active && setPending(found[passport.id] ?? [])).catch(() => {});
+    if (role === 'shop') fetchClaims([passport.id]).then((found) => active && setClaims(found[passport.id] ?? [])).catch(() => {});
     return () => { active = false; };
   }, [passport.id, passport.sequence, role]);
+  const STATUS = { 'in-shop': 'In the shop', collected: 'Collected', claimed: 'With its owner' };
   return <section className="passport">
     <button type="button" className="back" onClick={onBack}><ArrowLeft size={16} aria-hidden="true" />All passports</button>
     <div className="passport-grid">
@@ -263,20 +340,22 @@ function PassportView({ passport, role, me, signer, busy, onBack, onReview, onRe
         <Laptop size={36} weight="duotone" className="summary-icon" aria-hidden="true" />
         <h1>{model}</h1>
         <p className="muted">First registered to {ownerLabel ?? 'its owner'}</p>
+        {shopHeld && <span className="status-chip"><Package size={14} aria-hidden="true" />{STATUS[shopStatus(passport)]} · held by the shop</span>}
         <dl className="facts">
-          <div><dt>Current owner</dt><dd><code>{short(passport.ownerLockHash)}</code>{role === 'owner' && <span className="you">you</span>}</dd></div>
-          <div><dt>Workshop</dt><dd><code>{short(passport.workshopLockHash)}</code>{role === 'workshop' && <span className="you">you</span>}</dd></div>
+          <div><dt>Current owner</dt><dd>{shopHeld ? 'The shop' : <code>{short(passport.ownerLockHash)}</code>}{(role === 'owner' || role === 'shop') && <span className="you">you</span>}</dd></div>
+          <div><dt>Workshop</dt><dd><code>{short(passport.workshopLockHash)}</code>{(role === 'workshop' || role === 'shop') && <span className="you">you</span>}</dd></div>
           <div><dt>Events</dt><dd>{passport.events.length}</dd></div>
           <div><dt>Held in cell</dt><dd>{ckb(passport.capacity)}</dd></div>
         </dl>
-        <div className="share-row"><Copy value={passportLink(passport.id)} label="Copy passport link" /></div>
+        <div className="share-row"><Copy value={passportLink(passport.id)} label="Copy passport link" /><button type="button" className="btn btn-quiet" onClick={onCard}><QrCode size={16} aria-hidden="true" />QR card</button></div>
       </article>
 
       <article className="card timeline-card">
         <h2>History</h2>
         <ol className="timeline">
           {[...passport.events].reverse().map((event) => {
-            const { label, icon: Icon } = ACTIONS[event.action];
+            const { icon: Icon } = ACTIONS[event.action];
+            const label = event.action === 1 && event.detail.startsWith('Received:') ? 'Checked in' : event.action === 1 && event.detail === COLLECTED ? 'Collected' : ACTIONS[event.action].label;
             return <li key={event.txHash} className={`event event-${event.action}`}>
               <span className="event-icon"><Icon size={16} aria-hidden="true" /></span>
               <div className="event-body">
@@ -290,9 +369,15 @@ function PassportView({ passport, role, me, signer, busy, onBack, onReview, onRe
       </article>
 
       <article className="card actions-card">
-        <h2>{role === 'workshop' ? 'Record a repair' : role === 'owner' ? 'Owner actions' : 'Make a change'}</h2>
-        {!signer && <p className="muted">Connect the owner’s or the workshop’s wallet to change this passport.</p>}
-        {signer && role === 'viewer' && <p className="muted">The connected wallet <code>{short(me.address, 7, 4)}</code> is neither the owner nor the workshop for this passport.</p>}
+        <h2>{role === 'shop' ? 'Shop actions' : role === 'workshop' ? 'Record a repair' : role === 'owner' ? 'Owner actions' : shopHeld ? 'Is this your device?' : 'Make a change'}</h2>
+        {!signer && !shopHeld && <p className="muted">Connect the owner’s or the workshop’s wallet to change this passport.</p>}
+        {!signer && shopHeld && <div className="stack"><p className="muted">The shop is holding this passport for its owner. If this is your device, connect a wallet to ask the shop to hand it to you.</p><button type="button" className="btn btn-quiet" onClick={onConnect}><Wallet size={16} aria-hidden="true" />Connect wallet</button></div>}
+        {signer && role === 'viewer' && !shopHeld && <p className="muted">The connected wallet <code>{short(me.address, 7, 4)}</code> is neither the owner nor the workshop for this passport.</p>}
+        {signer && role === 'viewer' && shopHeld && <div className="stack">
+          <p className="muted">The shop is holding this passport. Ask them to hand it to your wallet <code>{short(me.address, 7, 4)}</code>. They approve it with you in the shop.</p>
+          <button type="button" className="btn btn-primary" disabled={busy || !inboxEnabled} onClick={onClaim}><UserCirclePlus size={16} aria-hidden="true" />Request ownership</button>
+        </div>}
+        {role === 'shop' && <ShopActions busy={busy} claims={claims} onShopRepair={onShopRepair} onApproveClaim={onApproveClaim} onTransfer={onTransfer} onClose={onClose} />}
         {role === 'workshop' && <RepairForm busy={busy} onRepair={onRepair} />}
         {role === 'owner' && pending.map((d) => <button key={d.txHash} type="button" className="inbox-item" disabled={busy} onClick={() => void onReview(d.request)}>
           <Tray size={20} aria-hidden="true" />
@@ -301,6 +386,54 @@ function PassportView({ passport, role, me, signer, busy, onBack, onReview, onRe
         {role === 'owner' && <OwnerActions busy={busy} onTransfer={onTransfer} onClose={onClose} />}
       </article>
     </div>
+  </section>;
+}
+
+function ShopActions({ busy, claims, onShopRepair, onApproveClaim, onTransfer, onClose }) {
+  const [note, setNote] = useState('');
+  const bytes = new TextEncoder().encode(note.trim()).length;
+  return <div className="stack">
+    {claims.map((c) => <div key={c.lockHash} className="inbox-item">
+      <UserCirclePlus size={20} aria-hidden="true" />
+      <div><strong>Ownership request</strong><span>From <code>{short(c.address, 10, 6)}</code>. Approve only with the customer in front of you.</span>
+        <button type="button" className="btn btn-primary" disabled={busy} onClick={() => onApproveClaim(c)}>Hand over to this customer</button></div>
+    </div>)}
+    <form className="stack" onSubmit={async (event) => { event.preventDefault(); if (await onShopRepair(note.trim())) setNote(''); }}>
+      <Field label="What was done" hint={`${bytes}/160 bytes. Public and permanent. Your shop signs this alone while it holds the passport.`}>
+        <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} placeholder="Replaced screen with OEM panel, tested touch" />
+      </Field>
+      <button className="btn btn-primary" disabled={busy || !bytes || bytes > 160}><Wrench size={16} aria-hidden="true" />Record repair</button>
+    </form>
+    <button type="button" className="btn btn-quiet" disabled={busy} onClick={() => onShopRepair(COLLECTED)}><Package size={16} aria-hidden="true" />Mark collected by customer</button>
+    <details className="more">
+      <summary>Hand over or close</summary>
+      <OwnerActions busy={busy} onTransfer={onTransfer} onClose={onClose} />
+    </details>
+  </div>;
+}
+
+function CardView({ passport, onBack }) {
+  const [svg, setSvg] = useState('');
+  const [model, label] = passport.events[0].detail.split(' / ');
+  const link = passportLink(passport.id);
+  useEffect(() => { QRCode.toString(link, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' }).then(setSvg).catch(() => setSvg('')); }, [link]);
+  return <section className="panel narrow card-view">
+    <button type="button" className="back no-print" onClick={onBack}><ArrowLeft size={16} aria-hidden="true" />Back to passport</button>
+    <div className="qr-card">
+      <div className="qr" dangerouslySetInnerHTML={{ __html: svg }} />
+      <div className="qr-text">
+        <p className="kicker">Living Passport</p>
+        <strong>{model}</strong>
+        <span>{label}</span>
+        <span className="muted">Scan to see this device’s repair history.</span>
+        <code>{short(passport.id, 10, 6)}</code>
+      </div>
+    </div>
+    <div className="button-row no-print">
+      <button type="button" className="btn btn-primary" onClick={() => window.print()}><Printer size={16} aria-hidden="true" />Print card</button>
+      <Copy value={link} label="Copy link" />
+    </div>
+    <p className="field-hint no-print">Give the card to the customer or stick it on the device. Anyone can scan it, no wallet needed.</p>
   </section>;
 }
 

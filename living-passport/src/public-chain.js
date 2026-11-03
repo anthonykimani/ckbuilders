@@ -75,13 +75,23 @@ export async function listPassports(client, deployment, lockHash, limit = 200) {
   for await (const cell of client.findCells(search, 'desc', limit)) {
     const args = cell.cellOutput.type.args;
     const owner = cell.cellOutput.lock.hash() === lockHash;
-    if (owner || workshopLockHash(args) === lockHash) ids.push({ args, role: owner ? 'owner' : 'workshop' });
+    const workshop = workshopLockHash(args) === lockHash;
+    if (owner || workshop) ids.push({ args, role: owner && workshop ? 'shop' : owner ? 'owner' : 'workshop' });
     if (ids.length >= limit) break;
   }
   const loaded = await Promise.all(ids.map(async ({ args, role }) => {
     try { const passport = await loadPassport(client, deployment, args); return passport && { ...passport, role }; } catch { return null; }
   }));
   return loaded.filter(Boolean);
+}
+
+export const COLLECTED = 'Collected by customer';
+
+// Where a device stands for the shop: still in the shop, collected by a customer who has no
+// wallet (the shop keeps the passport), or claimed by an owner who now holds it.
+export function shopStatus(passport) {
+  if (passport.ownerLockHash !== passport.workshopLockHash) return 'claimed';
+  return passport.events.at(-1).detail === COLLECTED ? 'collected' : 'in-shop';
 }
 
 export function passportLink(args) {

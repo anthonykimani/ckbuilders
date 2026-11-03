@@ -37,20 +37,25 @@ async function submit(signer, tx) {
   return hash;
 }
 
-export async function createPassport(signer, deployment, { model, owner, workshopAddress }) {
+// With `shop`, the connected wallet registers the device for a customer and names itself as
+// the workshop: the shop holds the passport and records repairs alone until it hands it over.
+export async function createPassport(signer, deployment, { model, owner, workshopAddress, shop = false }) {
   testnet(signer);
   const description = `${text(model, 80)} / ${text(owner, 60)}`;
-  const workshopText = workshopAddress.trim();
-  if (!workshopText.startsWith('ckt1')) throw new Error('The workshop address must be a testnet wallet address starting with ckt1. A passport ID will not work here.');
-  const workshop = await Address.fromString(workshopText, signer.client);
   const ownerLock = (await signer.getRecommendedAddressObj()).script;
-  if (workshop.script.hash() === ownerLock.hash()) throw new Error('The workshop must be a different wallet from the owner.');
+  let workshopHash = ownerLock.hash();
+  if (!shop) {
+    const workshopText = workshopAddress.trim();
+    if (!workshopText.startsWith('ckt1')) throw new Error('The workshop address must be a testnet wallet address starting with ckt1. A passport ID will not work here.');
+    workshopHash = (await Address.fromString(workshopText, signer.client)).script.hash();
+    if (workshopHash === ownerLock.hash()) throw new Error('The workshop must be a different wallet from the owner.');
+  }
   // Any plain Cell can be the one-use funding input (input 0, whose OutPoint becomes the
   // passport's identity); the rest of the 600 CKB is collected from other Cells.
   const funding = await pureCell(signer, 1n);
   const random = crypto.getRandomValues(new Uint8Array(16));
   const itemId = hashCkb(bytesConcat(bytesFrom(funding.outPoint.toBytes()), random));
-  const args = hexFrom(bytesConcat(bytesFrom(funding.outPoint.toBytes()), bytesFrom(workshop.script.hash())));
+  const args = hexFrom(bytesConcat(bytesFrom(funding.outPoint.toBytes()), bytesFrom(workshopHash)));
   const type = passportType(deployment, args);
   const record = encodeRecord({ action: 0, sequence: 0, itemId, previousRoot: itemId, actorHash: ownerLock.hash(), recipientHash: ownerLock.hash(), detail: description });
   const tx = Transaction.default();
@@ -79,6 +84,22 @@ export async function transferPassport(signer, deployment, passport, { recipient
   const tx = Transaction.default();
   addInput(tx, oldCell);
   tx.addOutput({ lock: recipient.script, type, capacity: oldCell.cellOutput.capacity }, record.data);
+  tx.addCellDeps(cellDep(deployment));
+  return submit(signer, tx);
+}
+
+// A shop that both holds the passport and is its named workshop records a repair alone.
+export async function shopRepair(signer, deployment, passport, note) {
+  testnet(signer);
+  const type = passportType(deployment, passport.id);
+  const oldCell = await signer.client.findSingletonCellByType(type, true);
+  if (!oldCell) throw new Error('The passport Cell is no longer live. Reload its history.');
+  const shopLock = (await signer.getRecommendedAddressObj()).script;
+  if (oldCell.cellOutput.lock.hash() !== shopLock.hash() || shopLock.hash() !== passport.workshopLockHash) throw new Error('Only the shop holding this passport can record repairs alone.');
+  const record = encodeRecord({ action: 1, sequence: passport.sequence + 1, itemId: passport.itemId, previousRoot: passport.historyRoot, actorHash: shopLock.hash(), recipientHash: shopLock.hash(), detail: text(note) });
+  const tx = Transaction.default();
+  addInput(tx, oldCell);
+  tx.addOutput({ lock: shopLock, type, capacity: oldCell.cellOutput.capacity }, record.data);
   tx.addCellDeps(cellDep(deployment));
   return submit(signer, tx);
 }

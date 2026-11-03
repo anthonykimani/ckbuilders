@@ -11,12 +11,13 @@ const itemId = hashCkb(new TextEncoder().encode('example-laptop-serial-001'));
 const bytes = (value) => Buffer.from(value.slice(2), 'hex');
 const lockBinary = hexFrom(readFileSync(DEFAULT_SCRIPT_ALWAYS_SUCCESS));
 
-async function verify({ kind, before, mutate, attested = false, recipient = false, wrongId = false, close = false, extraInput = false }) {
+async function verify({ kind, before, mutate, attested = false, recipient = false, wrongId = false, close = false, extraInput = false, shop = false }) {
   const resource = Resource.default();
   const tx = Transaction.default();
   const deployed = resource.deployCell(hexFrom(binary), tx, false);
   const owner = resource.deployCell(lockBinary, tx, false);
-  const attester = owner.clone(); attester.args = '0x01';
+  // A shop-held passport names its own owner as the workshop.
+  const attester = owner.clone(); if (!shop) attester.args = '0x01';
   const newOwner = owner.clone(); newOwner.args = '0x02';
   const funding = resource.mockCell(owner, undefined, '0x', CAPACITY + 100_000_000n);
   const type = deployed.clone();
@@ -82,5 +83,16 @@ test('CKB-VM lets the owner close a passport and reclaim its capacity', async ()
 
 test('CKB-VM rejects closing two passports in one transaction', async () => {
   const result = await verify({ kind: 'repair', before: 'repair', close: true, extraInput: true });
+  assert.notEqual(result.scriptErrorCode, 0);
+});
+
+test('CKB-VM accepts a repair on a shop-held passport signed by the shop alone', async () => {
+  const result = await verify({ kind: 'repair', before: 'mint', shop: true });
+  assert.equal(result.scriptErrorCode, 0, result.stdout);
+});
+
+test('CKB-VM rejects a shop-held repair with a forged actor', async () => {
+  const flip = (hex, byte) => { const data = bytes(hex); data[byte] ^= 1; return hexFrom(data); };
+  const result = await verify({ kind: 'repair', before: 'mint', shop: true, mutate: (r) => ({ ...r, data: flip(r.data, 139) }) });
   assert.notEqual(result.scriptErrorCode, 0);
 });
