@@ -221,3 +221,13 @@ textarea { resize: vertical; }
   .qr-card { width: 85mm; border: 1px dashed #999; box-shadow: none; }
   .qr { width: 32mm; height: 32mm; }
 }
+
+.shop-identity { margin-bottom: 16px; }
+.shop-identity h2 { font-size: 16px; margin: 0; display: flex; align-items: center; gap: 8px; }
+.shop-identity-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.shop-identity-row > div:first-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.shop-identity .did { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.party { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.party small { font-size: 12px; font-weight: 400; color: var(--muted); }
+.party code { font-size: 11px; font-weight: 400; color: var(--muted); overflow-wrap: anywhere; }
+.event-by { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }

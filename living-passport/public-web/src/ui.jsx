@@ -17,6 +17,13 @@ export function TxLink({ hash, children }) {
   </a>;
 }
 
+// A wallet on a passport: its shop name and DID if it published one, otherwise its code.
+export function Party({ hash, shops }) {
+  const shop = shops.get(hash);
+  if (!shop) return <code>{short(hash)}</code>;
+  return <span className="party"><span>{shop.name}</span>{shop.location && <small>{shop.location}</small>}<code title={shop.did}>{short(shop.did, 14, 4)}</code></span>;
+}
+
 export function Copy({ value, label = 'Copy' }) {
   const [done, setDone] = useState(false);
   const timer = useRef();

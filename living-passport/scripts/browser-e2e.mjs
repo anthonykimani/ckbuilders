@@ -131,6 +131,14 @@ try {
     // card, and later hands the passport to the customer who asks for it.
     console.log(`[${elapsed()}] shop phone: register a walk-in device`);
     await workshop.goto(base);
+    await clickText(workshop, 'button', 'Add shop name');
+    await type(workshop, 'Shop name', 'Browser Test Repairs');
+    await type(workshop, 'Location (optional)', 'Nairobi');
+    await clickText(workshop, 'button', 'Review');
+    await workshop.waitForSelector('.sheet');
+    await clickText(workshop, '.sheet button', 'Continue to wallet');
+    await waitNotice(workshop, 'Shop identity saved: did:ckb:');
+    await snap(workshop, 'shop-identity-saved');
     await clickText(workshop, 'button', 'Register a device (shop)');
     await type(workshop, 'Device model', 'Tecno Spark 10 (browser test)');
     await type(workshop, 'Customer label', 'Ticket 0001');
@@ -145,6 +153,8 @@ try {
     await clickText(workshop, 'button', 'Record repair');
     await waitNotice(workshop, 'Repair recorded.');
     await snap(workshop, 'shop-repair-recorded');
+    await workshop.waitForFunction(() => document.querySelector('.party')?.textContent.includes('Browser Test Repairs') && document.querySelector('.event-by')?.textContent === 'By Browser Test Repairs', { timeout: 60000 });
+    await snap(workshop, 'shop-name-on-passport');
     await clickText(workshop, 'button', 'QR card');
     await workshop.waitForSelector('.qr svg');
     await snap(workshop, 'shop-qr-card');
@@ -168,6 +178,15 @@ try {
     const shopEvents = await workshop.$$eval('.timeline .event', (els) => els.map((e) => e.querySelector('p').textContent));
     console.log(`[${elapsed()}]   history: ${shopEvents.join(' <- ')}`);
     if (shopEvents.length !== 4) throw new Error('Shop history should have intake, condition, repair and hand-over.');
+
+    console.log(`[${elapsed()}] shop phone: remove the shop identity`);
+    await workshop.goto('about:blank');
+    await workshop.goto(base);
+    await clickText(workshop, 'button', 'Edit');
+    await clickText(workshop, 'button', 'Remove');
+    await workshop.waitForSelector('.sheet');
+    await clickText(workshop, '.sheet button', 'Remove');
+    await waitNotice(workshop, 'Shop identity removed.');
 
     console.log(`[${elapsed()}] customer phone: owns it now, closes it`);
     await owner.goto('about:blank');

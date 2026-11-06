@@ -64,6 +64,14 @@ npm run public:build   # static output in public-web/dist-public/
 
 The site is hosted on Vercel using [`vercel.json`](vercel.json): install with `npm ci`, build with `npm run public:build`, serve `public-web/dist-public`. In the Vercel project, set **Root Directory** to `living-passport`. Repair links keep the signed draft in the URL fragment, which browsers do not send to the host.
 
+## Shop identity (did:ckb)
+
+A shop can publish its name and location as a standard `did:ckb` cell (`src/public-did.js`, using `@ckb-ccc/did-ckb`). The passport contract does not change: passports still name wallets by Lock hash, and the site looks up the name for that Lock.
+
+- The name sits in the DID document under `services.living_passport`. About 270 testnet CKB stays in the cell until the shop removes it
+- Anyone can create a DID cell under someone else's Lock without their signature. So a document only counts if the transaction that wrote it also spends a cell of that Lock
+- A DID proves the same wallet published the name. It does not prove the name is true: anyone can publish "Dflex Technologies" from their own wallet, so the site says names are unchecked
+
 ## Data and trust boundary
 
 Event text is public and permanent. Do not enter serial numbers, personal contact details, or other private information. The script verifies signed Lock participation, recipient binding, event bytes and hash-linked history. It cannot establish that a laptop exists, that an owner label is accurate, or that a repair occurred. A workshop address chosen at creation is not accreditation. Closing a passport releases its capacity and ends the live record; the past events remain readable in historical transactions but the app only opens live passports.

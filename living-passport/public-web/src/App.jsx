@@ -4,10 +4,11 @@ import { Laptop, MagnifyingGlass, Plus, Wallet, SignOut, ShareNetwork, ArrowLeft
 import QRCode from 'qrcode';
 import { closePassport, createPassport, shopRepair, transferPassport } from '../../src/public-actions.js';
 import { COLLECTED, listPassports, loadPassport, passportLink, shopStatus } from '../../src/public-chain.js';
+import { findShops, removeShop, saveShop } from '../../src/public-did.js';
 import { approveRepair, decodeRequest, draftRepair, encodeRequest, reviewRepair } from '../../src/public-repair.js';
 import published from '../deployment.testnet.json';
 import { fetchClaims, fetchDrafts, inboxEnabled, postClaim, postDraft } from './inbox.js';
-import { ACTIONS, Confirm, Copy, Field, Notice, TxLink, ckb, short } from './ui.jsx';
+import { ACTIONS, Confirm, Copy, Field, Notice, Party, TxLink, ckb, short } from './ui.jsx';
 
 const env = import.meta.env;
 const deployment = {
@@ -34,6 +35,8 @@ export default function App() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [done, setDone] = useState(null);
+  const [myShop, setMyShop] = useState(undefined);
+  const [shops, setShops] = useState(new Map());
   const [confirm, setConfirm] = useState(null);
 
   useEffect(() => {
@@ -44,6 +47,26 @@ export default function App() {
     }).catch(() => active && setMe({ address: '', lockHash: '' }));
     return () => { active = false; };
   }, [signer]);
+
+  // The connected wallet's own shop identity: undefined while loading, null if it has none.
+  const reloadMyShop = useCallback(async (lockHash) => {
+    const found = await findShops(client, [lockHash]);
+    setMyShop(found.get(lockHash) ?? null);
+  }, [client]);
+  useEffect(() => {
+    setMyShop(undefined);
+    if (me.lockHash) reloadMyShop(me.lockHash).catch(() => {});
+  }, [me.lockHash, reloadMyShop]);
+
+  // Names for the wallets on the open passport. Without them the page shows wallet codes.
+  const workshopHash = passport?.workshopLockHash;
+  const ownerHash = passport?.ownerLockHash;
+  useEffect(() => {
+    let active = true;
+    setShops(new Map());
+    if (workshopHash) findShops(client, [workshopHash, ownerHash]).then((found) => active && setShops(found)).catch(() => {});
+    return () => { active = false; };
+  }, [client, workshopHash, ownerHash, myShop]);
 
   // Notices sit above the form; on a phone the user is scrolled down to the button.
   useEffect(() => { if (busy || error || done) window.scrollTo({ top: 0, behavior: 'smooth' }); }, [busy, error, done]);
@@ -108,7 +131,23 @@ export default function App() {
       {done && <Notice>{done.text} {done.tx && <TxLink hash={done.tx} />}</Notice>}
 
       {view === 'loading' && <Skeleton />}
-      {view === 'home' && signer && me.lockHash && deployed && <MyDevices client={client} lockHash={me.lockHash} onOpen={openPassport} onReview={openRequest} />}
+      {view === 'home' && signer && me.lockHash && deployed && <>
+        <ShopIdentity shop={myShop} busy={!!busy}
+          onSave={async (details) => {
+            const ok = await ask({ title: myShop ? 'Update your shop name?' : 'Publish your shop name?', confirm: 'Continue to wallet', rows: [['Shop name', details.name], ['Location', details.location.trim() || 'Not given']], warning: `${myShop ? '' : 'About 270 testnet CKB stays in your shop identity until you remove it. '}This is public, and earlier versions stay in past transactions.` });
+            if (!ok) return false;
+            const saved = await run('Saving your shop identity', async () => { const result = await saveShop(signer, details, myShop); await reloadMyShop(me.lockHash); return result; });
+            if (saved) setDone({ text: `Shop identity saved: ${saved.did}`, tx: saved.txHash });
+            return !!saved;
+          }}
+          onRemove={async () => {
+            const ok = await ask({ title: 'Remove your shop name?', confirm: 'Remove', danger: true, rows: [['Shop name', myShop.name]], warning: 'Your passports go back to showing a wallet code, and the CKB in this identity returns to your wallet. Earlier versions stay in past transactions.' });
+            if (!ok) return;
+            const removed = await run('Removing your shop identity', async () => { const result = await removeShop(signer, myShop); await reloadMyShop(me.lockHash); return result; });
+            if (removed) setDone({ text: 'Shop identity removed.', tx: removed.txHash });
+          }} />
+        <MyDevices client={client} lockHash={me.lockHash} onOpen={openPassport} onReview={openRequest} />
+      </>}
       {view === 'home' && <Home onOpen={openPassport} onCreate={(mode) => { setError(''); setCreateMode(mode); setView('create'); }} disabled={!deployed || !!busy} />}
 
       {view === 'create' && <CreateView mode={createMode} onMode={setCreateMode} signer={signer} me={me} disabled={!deployed || !!busy} onBack={goHome}
@@ -130,9 +169,9 @@ export default function App() {
           if (result) { await openPassport(result.args, { quiet: true }); setDone({ text: shop ? 'Device registered. Print its QR card for the customer.' : 'Passport created.', tx: result.txHash }); }
         }} />}
 
-      {view === 'card' && passport && <CardView passport={passport} onBack={() => setView('passport')} />}
+      {view === 'card' && passport && <CardView passport={passport} shops={shops} onBack={() => setView('passport')} />}
 
-      {view === 'passport' && passport && <PassportView passport={passport} role={role} me={me} signer={signer} busy={!!busy} onBack={goHome} onReview={openRequest} onCard={() => setView('card')} onConnect={open}
+      {view === 'passport' && passport && <PassportView passport={passport} shops={shops} role={role} me={me} signer={signer} busy={!!busy} onBack={goHome} onReview={openRequest} onCard={() => setView('card')} onConnect={open}
         onShopRepair={async (note) => {
           const tx = await run('Recording the repair', () => shopRepair(signer, deployment, passport, note));
           if (tx) { await openPassport(passport.id, { quiet: true }); setDone({ text: note === COLLECTED ? 'Marked as collected.' : 'Repair recorded.', tx }); }
@@ -171,7 +210,7 @@ export default function App() {
           if (tx) { goHome(); setDone({ text: 'Passport closed and capacity returned.', tx }); }
         }} />}
 
-      {view === 'approve' && <ApproveView review={review} passport={passport} me={me} signer={signer} busy={!!busy} onConnect={open}
+      {view === 'approve' && <ApproveView review={review} passport={passport} shops={shops} me={me} signer={signer} busy={!!busy} onConnect={open}
         onApprove={async () => {
           const tx = await run('Signing and submitting the repair', () => approveRepair(signer, deployment, request));
           if (tx) { history.replaceState(null, '', `?passport=${encodeURIComponent(request.passport)}`); await openPassport(request.passport, { quiet: true }); setDone({ text: 'Repair added to the passport.', tx }); }
@@ -320,7 +359,32 @@ function CreateView({ mode, onMode, signer, disabled, onSubmit, onBack }) {
   </section>;
 }
 
-function PassportView({ passport, role, me, signer, busy, onBack, onReview, onRepair, onTransfer, onClose, onCard, onConnect, onShopRepair, onClaim, onApproveClaim }) {
+function ShopIdentity({ shop, busy, onSave, onRemove }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ name: '', location: '' });
+  if (shop === undefined) return null;
+  const edit = () => { setForm({ name: shop?.name ?? '', location: shop?.location ?? '' }); setEditing(true); };
+  if (editing) return <form className="card shop-identity stack" onSubmit={async (event) => { event.preventDefault(); if (await onSave(form)) setEditing(false); }}>
+    <h2><Storefront size={18} aria-hidden="true" />{shop ? 'Your shop identity' : 'Add your shop name'}</h2>
+    <Field label="Shop name" hint="Shown on every passport your shop works on."><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} maxLength={60} placeholder="Dflex Technologies" /></Field>
+    <Field label="Location (optional)" hint="A town or street. This is public."><input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} maxLength={60} placeholder="Nairobi CBD" /></Field>
+    <div className="button-row">
+      <button className="btn btn-primary" disabled={busy || !form.name.trim()}>Review</button>
+      <button type="button" className="btn btn-quiet" onClick={() => setEditing(false)}>Cancel</button>
+      {shop && <button type="button" className="btn btn-danger-quiet" disabled={busy} onClick={async () => { await onRemove(); setEditing(false); }}><Trash size={16} aria-hidden="true" />Remove</button>}
+    </div>
+  </form>;
+  if (!shop) return <div className="card shop-identity shop-identity-row">
+    <div><strong>Is this a shop wallet?</strong><span className="muted">Add your shop’s name so customers see it instead of a wallet code.</span></div>
+    <button type="button" className="btn btn-quiet" disabled={busy} onClick={edit}><Storefront size={16} aria-hidden="true" />Add shop name</button>
+  </div>;
+  return <div className="card shop-identity shop-identity-row">
+    <div><strong>{shop.name}</strong><span className="muted">{shop.location ? `${shop.location} · ` : ''}Your shop identity</span><code className="did">{shop.did}</code></div>
+    <div className="button-row"><Copy value={shop.did} label="Copy DID" /><button type="button" className="btn btn-quiet" disabled={busy} onClick={edit}>Edit</button></div>
+  </div>;
+}
+
+function PassportView({ passport, shops, role, me, signer, busy, onBack, onReview, onRepair, onTransfer, onClose, onCard, onConnect, onShopRepair, onClaim, onApproveClaim }) {
   const [model, ownerLabel] = passport.events[0].detail.split(' / ');
   const [pending, setPending] = useState([]);
   const [claims, setClaims] = useState([]);
@@ -342,11 +406,12 @@ function PassportView({ passport, role, me, signer, busy, onBack, onReview, onRe
         <p className="muted">First registered to {ownerLabel ?? 'its owner'}</p>
         {shopHeld && <span className="status-chip"><Package size={14} aria-hidden="true" />{STATUS[shopStatus(passport)]} · held by the shop</span>}
         <dl className="facts">
-          <div><dt>Current owner</dt><dd>{shopHeld ? 'The shop' : <code>{short(passport.ownerLockHash)}</code>}{(role === 'owner' || role === 'shop') && <span className="you">you</span>}</dd></div>
-          <div><dt>Workshop</dt><dd><code>{short(passport.workshopLockHash)}</code>{(role === 'workshop' || role === 'shop') && <span className="you">you</span>}</dd></div>
+          <div><dt>Current owner</dt><dd>{shopHeld ? shops.get(passport.ownerLockHash)?.name ?? 'The shop' : <Party hash={passport.ownerLockHash} shops={shops} />}{(role === 'owner' || role === 'shop') && <span className="you">you</span>}</dd></div>
+          <div><dt>Workshop</dt><dd><Party hash={passport.workshopLockHash} shops={shops} />{(role === 'workshop' || role === 'shop') && <span className="you">you</span>}</dd></div>
           <div><dt>Events</dt><dd>{passport.events.length}</dd></div>
           <div><dt>Held in cell</dt><dd>{ckb(passport.capacity)}</dd></div>
         </dl>
+        {shops.size > 0 && <p className="field-hint">Shop names are set by the shop’s own wallet. Nobody has checked them.</p>}
         <div className="share-row"><Copy value={passportLink(passport.id)} label="Copy passport link" /><button type="button" className="btn btn-quiet" onClick={onCard}><QrCode size={16} aria-hidden="true" />QR card</button></div>
       </article>
 
@@ -361,6 +426,7 @@ function PassportView({ passport, role, me, signer, busy, onBack, onReview, onRe
               <div className="event-body">
                 <strong>{label}</strong>
                 <p>{event.action === 0 ? event.detail.replace(' / ', ', registered to ') : event.detail}</p>
+                {event.action === 1 && shops.get(passport.workshopLockHash) && <span className="event-by">By {shops.get(passport.workshopLockHash).name}</span>}
                 <TxLink hash={event.txHash} />
               </div>
             </li>;
@@ -412,7 +478,7 @@ function ShopActions({ busy, claims, onShopRepair, onApproveClaim, onTransfer, o
   </div>;
 }
 
-function CardView({ passport, onBack }) {
+function CardView({ passport, shops, onBack }) {
   const [svg, setSvg] = useState('');
   const [model, label] = passport.events[0].detail.split(' / ');
   const link = passportLink(passport.id);
@@ -425,6 +491,7 @@ function CardView({ passport, onBack }) {
         <p className="kicker">Living Passport</p>
         <strong>{model}</strong>
         <span>{label}</span>
+        {shops.get(passport.workshopLockHash) && <span>Serviced by {shops.get(passport.workshopLockHash).name}</span>}
         <span className="muted">Scan to see this device’s repair history.</span>
         <code>{short(passport.id, 10, 6)}</code>
       </div>
@@ -477,16 +544,17 @@ function OwnerActions({ busy, onTransfer, onClose }) {
   </div>;
 }
 
-function ApproveView({ review, passport, me, signer, busy, onConnect, onApprove }) {
+function ApproveView({ review, passport, shops, me, signer, busy, onConnect, onApprove }) {
   if (!review || !passport) return <section className="panel narrow"><h1>Repair approval</h1><p className="muted">Loading the request from testnet…</p></section>;
   const isOwner = me.lockHash === review.ownerLockHash;
   const [model] = passport.events[0].detail.split(' / ');
+  const shop = shops.get(passport.workshopLockHash);
   return <section className="panel narrow">
     <p className="kicker">Repair approval</p>
     <h1>{model}</h1>
     <blockquote className="repair-note">{review.note}</blockquote>
     <ul className="checks">
-      <li><ShieldCheck size={18} aria-hidden="true" />Drafted by the workshop named on this passport</li>
+      <li><ShieldCheck size={18} aria-hidden="true" />Drafted by {shop ? `${shop.name}, ` : ''}the workshop named on this passport</li>
       <li><ShieldCheck size={18} aria-hidden="true" />The passport stays with you, with the same capacity</li>
       <li><ShieldCheck size={18} aria-hidden="true" />No other funds leave your wallet</li>
       <li><ShieldCheck size={18} aria-hidden="true" />Becomes event {review.sequence + 1} after {passport.events.length} confirmed events</li>
