@@ -72,6 +72,22 @@ A shop can publish its name and location as a standard `did:ckb` cell (`src/publ
 - Anyone can create a DID cell under someone else's Lock without their signature. So a document only counts if the transaction that wrote it also spends a cell of that Lock
 - A DID proves the same wallet published the name. It does not prove the name is true: anyone can publish "Dflex Technologies" from their own wallet, so the site says names are unchecked
 
+## Vouching
+
+A shop with an identity can vouch for another shop by adding that shop's `did:ckb` to `vouches` in its own document. A passport shows how many other shops vouch for its workshop.
+
+- Vouches only count from documents their own wallet wrote, and a shop can't vouch for itself
+- A vouch is only as good as the shop giving it. Anyone can make several shop identities that vouch for each other, so the page names the shops that vouch
+
+## Stolen reports
+
+The current owner of a passport can report the device stolen. The report is a plain cell in the owner's wallet whose data is `LPSTOLEN`, the passport ID, then an optional note of up to 100 bytes. The passport contract does not change.
+
+- The page looks for reports under the passport's current owner Lock, so a hand-over clears them
+- A report only counts if the owner signed the transaction that wrote it
+- Marking the device recovered spends the report and returns its CKB, about 170 testnet CKB
+- A report is the owner's claim. It does not prove the device was stolen
+
 ## Data and trust boundary
 
 Event text is public and permanent. Do not enter serial numbers, personal contact details, or other private information. The script verifies signed Lock participation, recipient binding, event bytes and hash-linked history. It cannot establish that a laptop exists, that an owner label is accurate, or that a repair occurred. A workshop address chosen at creation is not accreditation. Closing a passport releases its capacity and ends the live record; the past events remain readable in historical transactions but the app only opens live passports.

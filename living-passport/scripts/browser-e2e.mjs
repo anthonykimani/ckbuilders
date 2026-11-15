@@ -159,6 +159,50 @@ try {
     await workshop.waitForSelector('.qr svg');
     await snap(workshop, 'shop-qr-card');
 
+    console.log(`[${elapsed()}] shop phone: report the device stolen`);
+    await workshop.goto(shopUrl);
+    await clickText(workshop, 'summary', 'Device stolen?');
+    await type(workshop, 'Public note (optional)', 'Taken from the counter (browser test)');
+    await clickText(workshop, 'button', 'Report stolen');
+    await workshop.waitForSelector('.sheet');
+    await clickText(workshop, '.sheet button', 'Continue to wallet');
+    await waitNotice(workshop, 'Device reported stolen.');
+    await workshop.waitForSelector('.stolen-banner');
+    await snap(workshop, 'shop-reported-stolen');
+
+    console.log(`[${elapsed()}] customer phone: scans the card and sees the warning`);
+    await owner.goto('about:blank');
+    await owner.goto(shopUrl);
+    await owner.waitForFunction(() => document.querySelector('.stolen-banner')?.textContent.includes('Taken from the counter'), { timeout: 60000 });
+    await snap(owner, 'customer-sees-stolen');
+
+    console.log(`[${elapsed()}] shop phone: mark it recovered`);
+    await clickText(workshop, 'button', 'Mark recovered');
+    await workshop.waitForSelector('.sheet');
+    await clickText(workshop, '.sheet button', 'Continue to wallet');
+    await waitNotice(workshop, 'Device marked recovered.');
+    if (await workshop.$('.stolen-banner')) throw new Error('The stolen warning should be gone after recovery.');
+
+    console.log(`[${elapsed()}] second shop: publish a name and vouch for the first shop`);
+    await owner.goto('about:blank');
+    await owner.goto(base);
+    await clickText(owner, 'button', 'Add shop name');
+    await type(owner, 'Shop name', 'Browser Test Second Shop');
+    await clickText(owner, 'button', 'Review');
+    await owner.waitForSelector('.sheet');
+    await clickText(owner, '.sheet button', 'Continue to wallet');
+    await waitNotice(owner, 'Shop identity saved: did:ckb:');
+    await owner.goto(shopUrl);
+    await clickText(owner, 'button', 'Vouch for Browser Test Repairs');
+    await owner.waitForSelector('.sheet');
+    await snap(owner, 'second-shop-vouch-confirm');
+    await clickText(owner, '.sheet button', 'Continue to wallet');
+    await waitNotice(owner, 'You now vouch for Browser Test Repairs.');
+    await owner.goto('about:blank');
+    await owner.goto(shopUrl);
+    await owner.waitForFunction(() => [...document.querySelectorAll('.party small')].some((el) => el.textContent === 'Vouched for by 1 shop'), { timeout: 60000 });
+    await snap(owner, 'shop-vouched-for');
+
     console.log(`[${elapsed()}] customer phone: scan the card and request ownership`);
     await owner.goto('about:blank');
     await owner.goto(shopUrl);
@@ -187,6 +231,15 @@ try {
     await workshop.waitForSelector('.sheet');
     await clickText(workshop, '.sheet button', 'Remove');
     await waitNotice(workshop, 'Shop identity removed.');
+
+    console.log(`[${elapsed()}] second shop: remove its identity`);
+    await owner.goto('about:blank');
+    await owner.goto(base);
+    await clickText(owner, 'button', 'Edit');
+    await clickText(owner, 'button', 'Remove');
+    await owner.waitForSelector('.sheet');
+    await clickText(owner, '.sheet button', 'Remove');
+    await waitNotice(owner, 'Shop identity removed.');
 
     console.log(`[${elapsed()}] customer phone: owns it now, closes it`);
     await owner.goto('about:blank');

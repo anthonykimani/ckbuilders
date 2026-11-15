@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Cell, OutPoint, Script, Transaction, hashCkb } from '@ckb-ccc/core';
 import { didCkb } from '@ckb-ccc/did-ckb';
-import { findShops, readShop, shopDocument } from '../src/public-did.js';
+import { findShops, readShop, shopDocument, withVouches } from '../src/public-did.js';
 
 const digest = (value) => hashCkb(new TextEncoder().encode(value));
 const lock = (byte) => Script.from({ codeHash: digest('lock'), hashType: 'type', args: `0x${byte.repeat(20)}` });
@@ -73,3 +73,32 @@ test('rejects empty names and strips hidden characters from names it reads', () 
   assert.equal(readShop(hidden).name, 'Dflex');
   assert.equal(readShop({ services: { living_passport: { type: 'LivingPassportShop', name: 42 } } }), null);
 });
+
+test('counts vouches from other shops, not from a shop itself', async () => {
+  const other = lock('03');
+  const otherDid = didCkb.argsToDid(`0x${'ee'.repeat(20)}`);
+  const shopDid = didCkb.argsToDid(`0x${'aa'.repeat(20)}`);
+  const vouching = didCkb.DidCkbData.from({ value: { document: shopDocument({ name: 'Other', vouches: [shopDid] }) } }).toHex();
+  const selfVouch = didCkb.DidCkbData.from({ value: { document: shopDocument({ name: 'Dflex', vouches: [shopDid, otherDid] }) } }).toHex();
+  const client = chain({ holder: shop, signer: shop, id: 'aa', data: selfVouch }, { holder: other, signer: other, id: 'ee', data: vouching });
+  const found = (await findShops(client, [shop.hash()])).get(shop.hash());
+  assert.deepEqual(found.vouchedBy.map((v) => v.name), ['Other']);
+  assert.deepEqual(found.vouches, [otherDid]);
+});
+
+test('a vouch written under a shop by someone else does not count', async () => {
+  const shopDid = didCkb.argsToDid(`0x${'aa'.repeat(20)}`);
+  const forged = didCkb.DidCkbData.from({ value: { document: shopDocument({ name: 'Fake', vouches: [shopDid] }) } }).toHex();
+  const client = chain({ holder: shop, signer: shop, name: 'Dflex', id: 'aa' }, { holder: lock('04'), signer: attacker, id: 'bb', data: forged });
+  assert.equal((await findShops(client, [shop.hash()])).get(shop.hash()).vouchedBy.length, 0);
+});
+
+test('editing a name keeps the vouches already published', () => {
+  const did = didCkb.argsToDid(`0x${'cc'.repeat(20)}`);
+  const before = shopDocument({ name: 'Dflex', vouches: [did, 'not a did'] });
+  assert.deepEqual(before.services.living_passport.vouches, [did]);
+  assert.deepEqual(shopDocument({ name: 'Dflex Tech' }, before).services.living_passport.vouches, [did]);
+  assert.equal(shopDocument({ name: 'Dflex', vouches: [] }, before).services.living_passport.vouches, undefined);
+  assert.deepEqual(withVouches({ lockHash: '0x1', did }, [{ lockHash: '0x1', did, vouches: [did], name: 'Self' }]).vouchedBy, []);
+});
+

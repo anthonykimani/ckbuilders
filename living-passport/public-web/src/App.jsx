@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ccc } from '@ckb-ccc/connector-react';
-import { Laptop, MagnifyingGlass, Plus, Wallet, SignOut, ShareNetwork, ArrowLeft, Wrench, ArrowsLeftRight, Trash, SealCheck, ShieldCheck, CopySimple, Check, Tray, Storefront, QrCode, Printer, UserCirclePlus, Package } from '@phosphor-icons/react';
+import { Laptop, MagnifyingGlass, Plus, Wallet, SignOut, ShareNetwork, ArrowLeft, Wrench, ArrowsLeftRight, Trash, SealCheck, ShieldCheck, CopySimple, Check, Tray, Storefront, QrCode, Printer, UserCirclePlus, Package, Warning, Handshake } from '@phosphor-icons/react';
 import QRCode from 'qrcode';
 import { closePassport, createPassport, shopRepair, transferPassport } from '../../src/public-actions.js';
 import { COLLECTED, listPassports, loadPassport, passportLink, shopStatus } from '../../src/public-chain.js';
-import { findShops, removeShop, saveShop } from '../../src/public-did.js';
+import { findShopByDid, findShops, loadShops, removeShop, saveShop, withVouches } from '../../src/public-did.js';
+import { findStolenReports, markRecovered, reportStolen } from '../../src/public-stolen.js';
 import { approveRepair, decodeRequest, draftRepair, encodeRequest, reviewRepair } from '../../src/public-repair.js';
 import published from '../deployment.testnet.json';
 import { fetchClaims, fetchDrafts, inboxEnabled, postClaim, postDraft } from './inbox.js';
@@ -50,8 +51,9 @@ export default function App() {
 
   // The connected wallet's own shop identity: undefined while loading, null if it has none.
   const reloadMyShop = useCallback(async (lockHash) => {
-    const found = await findShops(client, [lockHash]);
-    setMyShop(found.get(lockHash) ?? null);
+    const all = await loadShops(client);
+    const own = all.find((shop) => shop.lockHash === lockHash);
+    setMyShop(own ? { ...withVouches(own, all), vouchesFor: own.vouches.map((did) => ({ did, name: all.find((shop) => shop.did === did)?.name })) } : null);
   }, [client]);
   useEffect(() => {
     setMyShop(undefined);
@@ -67,6 +69,34 @@ export default function App() {
     if (workshopHash) findShops(client, [workshopHash, ownerHash]).then((found) => active && setShops(found)).catch(() => {});
     return () => { active = false; };
   }, [client, workshopHash, ownerHash, myShop]);
+
+  // Stolen reports from the passport's current owner.
+  const [stolen, setStolen] = useState([]);
+  const reloadStolen = useCallback(async (current) => setStolen(current ? await findStolenReports(client, current) : []), [client]);
+  useEffect(() => {
+    setStolen([]);
+    if (passport) reloadStolen(passport).catch(() => {});
+  }, [passport, reloadStolen]);
+
+  const vouch = async (did) => {
+    const target = await run('Looking up the shop', async () => {
+      if (did.trim() === myShop.did) throw new Error('You cannot vouch for your own shop.');
+      if (myShop.vouches.includes(did.trim())) throw new Error('You already vouch for this shop.');
+      return findShopByDid(client, did);
+    });
+    if (!target) return false;
+    const ok = await ask({ title: `Vouch for ${target.name}?`, confirm: 'Continue to wallet', rows: [['Shop', target.name], ['Location', target.location || 'Not given'], ['Already vouched for by', target.vouchedBy.length ? target.vouchedBy.map((v) => v.name).join(', ') : 'No shops yet'], ['DID', <code key="d">{short(target.did, 14, 6)}</code>]], warning: 'Only vouch for a shop you know is real, for example one you have visited. Everyone can see which shops you vouch for. Your identity holds about 45 more testnet CKB for each shop.' });
+    if (!ok) return false;
+    const saved = await run('Saving your vouch', async () => { const result = await saveShop(signer, { name: myShop.name, location: myShop.location, vouches: [...myShop.vouches, target.did] }, myShop); await reloadMyShop(me.lockHash); return result; });
+    if (saved) setDone({ text: `You now vouch for ${target.name}.`, tx: saved.txHash });
+    return !!saved;
+  };
+  const unvouch = async ({ did, name }) => {
+    const ok = await ask({ title: 'Stop vouching for this shop?', confirm: 'Continue to wallet', rows: [['Shop', name ?? short(did, 14, 6)]], warning: 'Your earlier vouch stays readable in past transactions.' });
+    if (!ok) return;
+    const saved = await run('Removing your vouch', async () => { const result = await saveShop(signer, { name: myShop.name, location: myShop.location, vouches: myShop.vouches.filter((d) => d !== did) }, myShop); await reloadMyShop(me.lockHash); return result; });
+    if (saved) setDone({ text: 'Vouch removed.', tx: saved.txHash });
+  };
 
   // Notices sit above the form; on a phone the user is scrolled down to the button.
   useEffect(() => { if (busy || error || done) window.scrollTo({ top: 0, behavior: 'smooth' }); }, [busy, error, done]);
@@ -132,7 +162,7 @@ export default function App() {
 
       {view === 'loading' && <Skeleton />}
       {view === 'home' && signer && me.lockHash && deployed && <>
-        <ShopIdentity shop={myShop} busy={!!busy}
+        <ShopIdentity shop={myShop} busy={!!busy} onVouch={vouch} onUnvouch={unvouch}
           onSave={async (details) => {
             const ok = await ask({ title: myShop ? 'Update your shop name?' : 'Publish your shop name?', confirm: 'Continue to wallet', rows: [['Shop name', details.name], ['Location', details.location.trim() || 'Not given']], warning: `${myShop ? '' : 'About 270 testnet CKB stays in your shop identity until you remove it. '}This is public, and earlier versions stay in past transactions.` });
             if (!ok) return false;
@@ -171,11 +201,24 @@ export default function App() {
 
       {view === 'card' && passport && <CardView passport={passport} shops={shops} onBack={() => setView('passport')} />}
 
-      {view === 'passport' && passport && <PassportView passport={passport} shops={shops} role={role} me={me} signer={signer} busy={!!busy} onBack={goHome} onReview={openRequest} onCard={() => setView('card')} onConnect={open}
+      {view === 'passport' && passport && <PassportView passport={passport} shops={shops} stolen={stolen} myShop={myShop} onVouch={vouch} role={role} me={me} signer={signer} busy={!!busy} onBack={goHome} onReview={openRequest} onCard={() => setView('card')} onConnect={open}
         onShopRepair={async (note) => {
           const tx = await run('Recording the repair', () => shopRepair(signer, deployment, passport, note));
           if (tx) { await openPassport(passport.id, { quiet: true }); setDone({ text: note === COLLECTED ? 'Marked as collected.' : 'Repair recorded.', tx }); }
           return !!tx;
+        }}
+        onReportStolen={async (note) => {
+          const ok = await ask({ title: 'Report this device stolen?', confirm: 'Continue to wallet', danger: true, rows: [['Device', passport.events[0].detail.split(' / ')[0]], ['Note', note || 'None']], warning: 'Anyone who opens this passport or scans its QR card will see that it was reported stolen. About 170 testnet CKB stays in the report until you mark the device recovered. The note is public.' });
+          if (!ok) return false;
+          const tx = await run('Reporting the device stolen', async () => { const hash = await reportStolen(signer, passport, note); await reloadStolen(passport); return hash; });
+          if (tx) setDone({ text: 'Device reported stolen.', tx });
+          return !!tx;
+        }}
+        onRecovered={async () => {
+          const ok = await ask({ title: 'Mark this device recovered?', confirm: 'Continue to wallet', rows: [['Reports to clear', String(stolen.length)]], warning: 'The stolen warning disappears from this passport and the CKB in the report returns to your wallet. The report stays readable in past transactions.' });
+          if (!ok) return;
+          const tx = await run('Marking the device recovered', async () => { const hash = await markRecovered(signer, passport, stolen); await reloadStolen(passport); return hash; });
+          if (tx) setDone({ text: 'Device marked recovered.', tx });
         }}
         onClaim={async () => {
           const ok = await run('Sending your request to the shop', () => postClaim(passport.id, me.address).then(() => true));
@@ -241,12 +284,15 @@ function MyDevices({ client, lockHash, onOpen, onReview }) {
   const [filter, setFilter] = useState('in-shop');
   const [query, setQuery] = useState('');
   const [failed, setFailed] = useState('');
+  const [stolenIds, setStolenIds] = useState(new Set());
   useEffect(() => {
     let active = true;
     setList(null); setFailed(''); setDrafts({}); setClaims({});
     listPassports(client, deployment, lockHash).then(async (found) => {
       if (!active) return;
       setList(found);
+      Promise.all(found.map((p) => findStolenReports(client, p).then((r) => r.length > 0 && p.id).catch(() => false)))
+        .then((ids) => active && setStolenIds(new Set(ids.filter(Boolean))));
       const [pending, requests] = await Promise.all([
         fetchDrafts(found.filter((p) => p.role === 'owner').map((p) => p.id)).catch(() => ({})),
         fetchClaims(found.filter((p) => p.role === 'shop').map((p) => p.id)).catch(() => ({})),
@@ -283,7 +329,7 @@ function MyDevices({ client, lockHash, onOpen, onReview }) {
         <input className="ledger-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search model, customer or repair" aria-label="Search the ledger" />
       </div>
       {!shown.length && <p className="muted">Nothing here.</p>}
-      <ul className="device-list">{shown.map((p) => <DeviceCard key={p.id} passport={p} onOpen={onOpen} badge={claims[p.id] && 'Ownership request'} />)}</ul>
+      <ul className="device-list">{shown.map((p) => <DeviceCard key={p.id} passport={p} onOpen={onOpen} badge={stolenIds.has(p.id) ? 'Reported stolen' : claims[p.id] && 'Ownership request'} danger={stolenIds.has(p.id)} />)}</ul>
     </div>}
     {list && !list.length && <p className="muted">No passports for this wallet yet. Create one, or ask the owner to name this wallet as the workshop.</p>}
     {list && groups.map(([role, title]) => {
@@ -291,18 +337,18 @@ function MyDevices({ client, lockHash, onOpen, onReview }) {
       if (!items.length) return null;
       return <div key={role} className="device-group">
         <h2>{title} <span className="count">{items.length}</span></h2>
-        <ul className="device-list">{items.map((p) => <DeviceCard key={p.id} passport={p} onOpen={onOpen} badge={drafts[p.id] && 'Repair waiting for approval'} />)}</ul>
+        <ul className="device-list">{items.map((p) => <DeviceCard key={p.id} passport={p} onOpen={onOpen} badge={stolenIds.has(p.id) ? 'Reported stolen' : drafts[p.id] && 'Repair waiting for approval'} danger={stolenIds.has(p.id)} />)}</ul>
       </div>;
     })}
   </section>;
 }
 
-function DeviceCard({ passport: p, onOpen, badge }) {
+function DeviceCard({ passport: p, onOpen, badge, danger }) {
   const latest = p.events.at(-1);
   const Icon = ACTIONS[latest.action]?.icon ?? Laptop;
   return <li><button type="button" className="device" onClick={() => void onOpen(p.id)}>
     <Laptop size={22} weight="duotone" aria-hidden="true" />
-    <div><strong>{p.events[0].detail}</strong><span><Icon size={14} aria-hidden="true" />{latest.action === 1 ? latest.detail : ACTIONS[latest.action]?.label} · {p.events.length} {p.events.length === 1 ? 'event' : 'events'}</span>{badge && <span className="pending">{badge}</span>}</div>
+    <div><strong>{p.events[0].detail}</strong><span><Icon size={14} aria-hidden="true" />{latest.action === 1 ? latest.detail : ACTIONS[latest.action]?.label} · {p.events.length} {p.events.length === 1 ? 'event' : 'events'}</span>{badge && <span className={`pending${danger ? ' pending-danger' : ''}`}>{badge}</span>}</div>
   </button></li>;
 }
 
@@ -359,8 +405,9 @@ function CreateView({ mode, onMode, signer, disabled, onSubmit, onBack }) {
   </section>;
 }
 
-function ShopIdentity({ shop, busy, onSave, onRemove }) {
+function ShopIdentity({ shop, busy, onSave, onRemove, onVouch, onUnvouch }) {
   const [editing, setEditing] = useState(false);
+  const [vouchDid, setVouchDid] = useState('');
   const [form, setForm] = useState({ name: '', location: '' });
   if (shop === undefined) return null;
   const edit = () => { setForm({ name: shop?.name ?? '', location: shop?.location ?? '' }); setEditing(true); };
@@ -379,12 +426,21 @@ function ShopIdentity({ shop, busy, onSave, onRemove }) {
     <button type="button" className="btn btn-quiet" disabled={busy} onClick={edit}><Storefront size={16} aria-hidden="true" />Add shop name</button>
   </div>;
   return <div className="card shop-identity shop-identity-row">
-    <div><strong>{shop.name}</strong><span className="muted">{shop.location ? `${shop.location} · ` : ''}Your shop identity</span><code className="did">{shop.did}</code></div>
+    <div><strong>{shop.name}</strong><span className="muted">{shop.location ? `${shop.location} · ` : ''}Your shop identity</span><code className="did">{shop.did}</code>
+      <span className="muted">{shop.vouchedBy.length ? `Vouched for by ${shop.vouchedBy.map((v) => v.name).join(', ')}` : 'No shop vouches for you yet. Share your DID with shops that know you.'}</span></div>
     <div className="button-row"><Copy value={shop.did} label="Copy DID" /><button type="button" className="btn btn-quiet" disabled={busy} onClick={edit}>Edit</button></div>
+    <div className="vouches">
+      {shop.vouchesFor.length > 0 && <ul>{shop.vouchesFor.map((v) => <li key={v.did}><Handshake size={16} aria-hidden="true" /><span>You vouch for {v.name ?? <code>{short(v.did, 14, 4)}</code>}</span>
+        <button type="button" className="btn btn-quiet btn-small" disabled={busy} onClick={() => void onUnvouch(v)}>Remove</button></li>)}</ul>}
+      <form className="input-row" onSubmit={async (event) => { event.preventDefault(); if (await onVouch(vouchDid)) setVouchDid(''); }}>
+        <input value={vouchDid} onChange={(event) => setVouchDid(event.target.value)} placeholder="did:ckb:… of a shop you know" aria-label="DID of a shop to vouch for" spellCheck="false" autoComplete="off" />
+        <button className="btn btn-quiet" disabled={busy || !vouchDid.trim()}><Handshake size={16} aria-hidden="true" />Vouch</button>
+      </form>
+    </div>
   </div>;
 }
 
-function PassportView({ passport, shops, role, me, signer, busy, onBack, onReview, onRepair, onTransfer, onClose, onCard, onConnect, onShopRepair, onClaim, onApproveClaim }) {
+function PassportView({ passport, shops, stolen, myShop, onVouch, onReportStolen, onRecovered, role, me, signer, busy, onBack, onReview, onRepair, onTransfer, onClose, onCard, onConnect, onShopRepair, onClaim, onApproveClaim }) {
   const [model, ownerLabel] = passport.events[0].detail.split(' / ');
   const [pending, setPending] = useState([]);
   const [claims, setClaims] = useState([]);
@@ -401,6 +457,11 @@ function PassportView({ passport, shops, role, me, signer, busy, onBack, onRevie
     <button type="button" className="back" onClick={onBack}><ArrowLeft size={16} aria-hidden="true" />All passports</button>
     <div className="passport-grid">
       <article className="card summary">
+        {stolen.length > 0 && <div className="stolen-banner" role="alert">
+          <Warning size={22} weight="fill" aria-hidden="true" />
+          <div><strong>Reported stolen</strong><span>The owner reported this device stolen. Do not buy it or its parts.</span>
+            {stolen.map((r) => <span key={r.txHash}>{r.note && <>“{r.note}” </>}<TxLink hash={r.txHash} /></span>)}</div>
+        </div>}
         <Laptop size={36} weight="duotone" className="summary-icon" aria-hidden="true" />
         <h1>{model}</h1>
         <p className="muted">First registered to {ownerLabel ?? 'its owner'}</p>
@@ -441,7 +502,9 @@ function PassportView({ passport, shops, role, me, signer, busy, onBack, onRevie
         {signer && role === 'viewer' && !shopHeld && <p className="muted">The connected wallet <code>{short(me.address, 7, 4)}</code> is neither the owner nor the workshop for this passport.</p>}
         {signer && role === 'viewer' && shopHeld && <div className="stack">
           <p className="muted">The shop is holding this passport. Ask them to hand it to your wallet <code>{short(me.address, 7, 4)}</code>. They approve it with you in the shop.</p>
-          <button type="button" className="btn btn-primary" disabled={busy || !inboxEnabled} onClick={onClaim}><UserCirclePlus size={16} aria-hidden="true" />Request ownership</button>
+          {stolen.length
+            ? <p className="field-hint">This device is reported stolen, so it can't be claimed. If it's yours, talk to the shop in person.</p>
+            : <button type="button" className="btn btn-primary" disabled={busy || !inboxEnabled} onClick={onClaim}><UserCirclePlus size={16} aria-hidden="true" />Request ownership</button>}
         </div>}
         {role === 'shop' && <ShopActions busy={busy} claims={claims} onShopRepair={onShopRepair} onApproveClaim={onApproveClaim} onTransfer={onTransfer} onClose={onClose} />}
         {role === 'workshop' && <RepairForm busy={busy} onRepair={onRepair} />}
@@ -450,9 +513,27 @@ function PassportView({ passport, shops, role, me, signer, busy, onBack, onRevie
           <div><strong>Repair waiting for your approval</strong><span>“{d.note}”</span></div>
         </button>)}
         {role === 'owner' && <OwnerActions busy={busy} onTransfer={onTransfer} onClose={onClose} />}
+        {(role === 'owner' || role === 'shop') && <StolenActions stolen={stolen} busy={busy} onReport={onReportStolen} onRecovered={onRecovered} />}
+        {myShop && shops.get(passport.workshopLockHash) && passport.workshopLockHash !== me.lockHash && !myShop.vouches.includes(shops.get(passport.workshopLockHash).did)
+          && <button type="button" className="btn btn-quiet" disabled={busy} onClick={() => void onVouch(shops.get(passport.workshopLockHash).did)}><Handshake size={16} aria-hidden="true" />Vouch for {shops.get(passport.workshopLockHash).name}</button>}
       </article>
     </div>
   </section>;
+}
+
+function StolenActions({ stolen, busy, onReport, onRecovered }) {
+  const [note, setNote] = useState('');
+  if (stolen.length) return <div className="stack stolen-actions">
+    <p className="field-hint">You reported this device stolen. Mark it recovered once you have it back.</p>
+    <button type="button" className="btn btn-quiet" disabled={busy} onClick={onRecovered}><Check size={16} aria-hidden="true" />Mark recovered</button>
+  </div>;
+  return <details className="more stolen-actions">
+    <summary>Device stolen?</summary>
+    <form className="stack" onSubmit={async (event) => { event.preventDefault(); if (await onReport(note.trim())) setNote(''); }}>
+      <Field label="Public note (optional)" hint="Where or when, if it helps. Do not add phone numbers or names."><input value={note} onChange={(event) => setNote(event.target.value)} maxLength={100} placeholder="Taken from a matatu in town" /></Field>
+      <button className="btn btn-danger-quiet" disabled={busy}><Warning size={16} aria-hidden="true" />Report stolen</button>
+    </form>
+  </details>;
 }
 
 function ShopActions({ busy, claims, onShopRepair, onApproveClaim, onTransfer, onClose }) {
@@ -554,7 +635,7 @@ function ApproveView({ review, passport, shops, me, signer, busy, onConnect, onA
     <h1>{model}</h1>
     <blockquote className="repair-note">{review.note}</blockquote>
     <ul className="checks">
-      <li><ShieldCheck size={18} aria-hidden="true" />Drafted by {shop ? `${shop.name}, ` : ''}the workshop named on this passport</li>
+      <li><ShieldCheck size={18} aria-hidden="true" />Drafted by {shop ? `${shop.name}${shop.vouchedBy.length ? ` (vouched for by ${shop.vouchedBy.length} ${shop.vouchedBy.length === 1 ? 'shop' : 'shops'})` : ''}, ` : ''}the workshop named on this passport</li>
       <li><ShieldCheck size={18} aria-hidden="true" />The passport stays with you, with the same capacity</li>
       <li><ShieldCheck size={18} aria-hidden="true" />No other funds leave your wallet</li>
       <li><ShieldCheck size={18} aria-hidden="true" />Becomes event {review.sequence + 1} after {passport.events.length} confirmed events</li>
