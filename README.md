@@ -15,6 +15,7 @@ Learning reports and projects by Anthony Kimani.
 - [Week 9](weekly-reports/week-nine/week-nine.md) — Living Passport on public testnet: two-signer repair, close, new frontend
 - [Week 10](weekly-reports/week-ten/week-ten.md) — Real phones, repair inbox, and the first repair shop visit (Dflex Technologies)
 - [Week 11](weekly-reports/week-eleven/week-eleven.md) — Shop-first mode, JoyID co-signed repair, shop names with did:ckb
+- [Week 12](weekly-reports/week-twelve/week-twelve.md) — Stolen device flag and shops vouching for each other
 
 ## Featured projects
 
